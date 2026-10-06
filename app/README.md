@@ -1,0 +1,82 @@
+# 提瓦特 · 语旅
+
+配合《原神》剧情学习日语的桌面应用，使用 Tauri 2、Vue 3 和本地 SQLite。
+
+## 使用
+
+首次打开后，在「剧情书库」点击「连接并下载任务目录」，即可用中文或日文任务名搜索。打开任务时按需下载日中双语正文，已下载的剧情可以离线阅读。
+
+- **全文阅读**：切换章节、搜索台词、选择日中对照或单语显示，并按空 / 荧切换旅行者台词。
+- **跟随游戏**：逐句推进、选择游戏中的对话分支，自动保存阅读进度。
+- **注音与查词**：开启假名注音后点击日文词语，或拖动划选文本，查看原形、读音和词典释义。
+- **笔记**：收藏生词或整句，补充自己的理解，再从笔记回到对应原句。
+- **语言助手**：可选配置兼容 OpenAI 的 API 或本地 CLI；基础阅读、词典和笔记无需 AI。主动发起云端解析时，对应台词和提问会发送给配置的服务。
+- **备份**：在设置中导出本地学习数据。恢复先检查备份，在下次启动时执行，可在重启前取消。
+
+桌面发布包内置完整词典与注音资源，不需要安装 Node.js 或 Rust。日语专有名词的自动读音可能存在偏差；部分词条只有英文释义。
+
+## 开发运行
+
+需要 Node.js 22.13 或更新版本、Rust stable，以及当前平台的 Tauri 开发环境。以下命令在 `app/` 目录执行。
+
+```bash
+cd frontend
+npm ci
+# 按下方说明准备词典，再启动应用
+npm run desktop
+```
+
+从 GitHub 获取源码后，先下载同一 Release 的独立词典压缩包，将 `dict.db` 放入 `crates/app/resources/`；也可以按下文说明重新构建完整词典。词典数据库作为 Release 附件分发，不存入 Git 仓库。
+
+安装前端依赖时会自动复制注音词典。`desktop` 会启动前端服务和桌面程序，无需手工启动两个终端。
+
+仅预览界面：运行 `npm run dev`，访问终端显示的地址并添加 `?mock=1`。预览使用独立示例数据，不连接桌面数据库；此入口只在开发模式启用。外置磁盘若无法检测文件修改，可设置 `GLL_WATCH_POLL=1` 启用轮询监听。
+
+## 构建桌面应用
+
+```bash
+cd frontend
+npm run desktop:build
+```
+
+安装包输出到 `app/target/release/bundle/`。macOS 应用包位于其 `macos/` 子目录。Windows、Linux 安装包需要在对应平台构建和验证。本机 macOS 构建默认使用 ad-hoc 签名；若环境中已设置 `APPLE_SIGNING_IDENTITY`，则优先使用该配置。
+
+`crates/app/resources/dict.db` 是随包发布的词典。需要重新构建时，在 `app/` 执行：
+
+```bash
+node tools/build-dict/build-dict.mjs build
+```
+
+脚本下载当前 Kaikki 中文维基词典数据和最新 JMdict / JMnedict，生成完整词典。使用流式读取和事务写入，完成后再替换旧文件；下载需要网络和可用磁盘空间。`--fixture` 仅用于开发测试，会生成小型示例词典，不应放入发布包。
+
+## 验证
+
+```bash
+# app/
+cargo test --workspace
+
+# app/frontend/
+npm run typecheck
+npm run test
+npm run build
+```
+
+## 数据与配置
+
+学习数据保存于系统应用数据目录；开发时可用 `GLL_DATA_DIR` 指定独立目录，或用 `GLL_DICT_DB` 指定词典文件。应用设置存于本地数据库，阅读语言与注音偏好会保留。API 密钥由系统凭据库保管，不包含在数据库备份中；迁移到其他设备后需要重新填写。
+
+## 目录
+
+- `frontend/src`：界面、阅读状态、分词线程与桌面通信。
+- `crates/app`：桌面入口、应用服务与资源。
+- `crates/kb`、`crates/fetcher`：任务目录、双语正文、数据源接入。
+- `crates/dict`、`crates/study`：词典、笔记与阅读进度。
+- `crates/store`、`crates/ai`、`crates/shared`：存储、可选 AI、共享类型。
+- `tools/build-dict`：完整词典构建工具。
+- `fixtures`：仅用于开发回归验证的剧情样本。
+
+## 数据来源
+
+剧情来自 [Project Amber](https://gi.yatta.moe)，相关游戏内容权利归原权利人所有。本项目为非官方学习工具。
+
+词典来自 [Kaikki / 中文维基词典](https://kaikki.org/zhwiktionary/) 和 [JMdict / JMnedict](https://www.edrdg.org/edrdg/licence.html)，改编词典按 CC BY-SA 4.0 分发，来源与许可信息保留在词典中。构建脚本随源码提供。

@@ -1,0 +1,12 @@
+[package]
+name = "fetcher"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+kb = { path = "../kb" }
+shared = { path = "../shared" }
+reqwest = { workspace = true }
+tokio = { workspace = true }
+async-trait = { workspace = true }
+serde_json = { workspace = true }

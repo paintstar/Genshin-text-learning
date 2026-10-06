@@ -1,0 +1,38 @@
+{
+  "name": "genshin-lang-frontend",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vue-tsc --noEmit && vite build",
+    "build:fast": "vite build",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "vue-tsc --noEmit",
+    "copy:dict": "node scripts/copy-kuromoji-dict.mjs",
+    "bindings": "cargo run -p xtask -- bindings --check",
+    "desktop": "cd ../crates/app && tauri dev",
+    "desktop:build": "node scripts/build-desktop.mjs",
+    "postinstall": "node scripts/copy-kuromoji-dict.mjs"
+  },
+  "dependencies": {
+    "@tauri-apps/api": "^2",
+    "@vueuse/core": "^13",
+    "@wwzzyying/kuromoji": "^1.0.6",
+    "naive-ui": "^2.42",
+    "pinia": "^3",
+    "vue": "^3.5",
+    "vue-router": "^4",
+    "wanakana": "^5.3"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.12.1",
+    "@vitejs/plugin-vue": "^6",
+    "typescript": "^5.9",
+    "vite": "^7",
+    "vitest": "^3",
+    "vue-tsc": "^3"
+  }
+}

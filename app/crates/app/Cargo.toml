@@ -1,0 +1,29 @@
+[package]
+name = "app"
+version.workspace = true
+edition.workspace = true
+
+[lib]
+name = "app_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[dependencies]
+shared = { path = "../shared" }
+store = { path = "../store" }
+kb = { path = "../kb" }
+fetcher = { path = "../fetcher" }
+dict = { path = "../dict" }
+study = { path = "../study" }
+ai = { path = "../ai" }
+serde = { workspace = true }
+serde_json = { workspace = true }
+rusqlite = { workspace = true }
+tokio = { workspace = true }
+tauri = { version = "2", features = [] }
+tauri-build = { version = "2", features = [] }
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dev-dependencies]
+async-trait = { workspace = true }

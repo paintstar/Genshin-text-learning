@@ -1,0 +1,30 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/shared",
+    "crates/store",
+    "crates/kb",
+    "crates/fetcher",
+    "crates/dict",
+    "crates/study",
+    "crates/ai",
+    "crates/app",
+    "crates/xtask",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "Proprietary"
+
+[workspace.dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sha2 = "0.10"
+rusqlite = { version = "0.37", features = ["bundled", "backup"] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "process", "sync", "time", "fs", "io-util"] }
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json", "stream"] }
+async-trait = "0.1"
+flate2 = "1"
+chrono = { version = "0.4", default-features = false, features = ["clock"] }
+thiserror = "2"
