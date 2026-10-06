@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { zhCN, dateZhCN } from 'naive-ui'
 import { useAiStore } from '@/stores/ai'
@@ -18,8 +18,15 @@ const ai = useAiStore()
 const settings = useSettingsStore()
 const reader = useReaderStore()
 const preferences = usePreferencesStore()
-initThemeController(preferences)
-initUiFontController(preferences)
+const themeController = initThemeController(preferences)
+const uiFontController = initUiFontController(preferences)
+preferences.startPersist()
+void preferences.load()
+onUnmounted(() => {
+  themeController.dispose()
+  uiFontController.dispose()
+  preferences.stopPersist()
+})
 const preferencesReady = ref(false)
 const showAi = ref(false)
 const nav = [
@@ -48,8 +55,6 @@ const naiveTheme = computed(() => naiveThemeFor(preferences.resolvedTheme))
 const themeOverrides = computed(() => themeOverridesFor(preferences.resolvedTheme))
 onMounted(async () => {
   await settings.refreshInit()
-  preferences.startPersist()
-  await preferences.load()
   try {
     const gw = getGateway()
     const [furigana, mode, language, traveler] = await Promise.all([
@@ -169,6 +174,10 @@ watch(
                 >重试连接</n-button
               ></n-alert
             >
+            <n-alert v-if="preferences.saveError" type="warning" class="global-alert">
+              部分外观或排版设置未能保存，当前窗口仍会生效。
+              <n-button size="small" @click="preferences.retrySave()">重试保存</n-button>
+            </n-alert>
             <router-view />
           </main>
         </div>

@@ -1,13 +1,4 @@
-/**
- * 主题控制器：系统深色偏好 → preferences store 注入 → html.dark class 落地。
- *
- * 装配契约（硬性）：initThemeController 必须在任何 resolvedTheme 首次求值之前同步调用
- * （App.vue 在 <script setup> 同步段、任何相关 computed/watch/模板渲染之前）。
- * resolvedTheme 是 computed，响应式依赖在首次求值时捕获；若首读发生在注入之前，
- * 求值走默认 resolver（非响应式读取、不产生追踪），此后替换模块级函数引用不会使
- * 已缓存的 computed 失效——跟随系统的实时响应将静默失效。本函数在同一同步段内
- * 依次完成 ref 创建与 setSystemPrefersDarkResolver 注入，使正确次序成为结构性保证。
- */
+/** 监听系统配色变化，将解析后的主题同步到页面根元素。 */
 
 import { ref, watch, type Ref } from 'vue'
 import {
@@ -76,15 +67,13 @@ export function initThemeController(
       : () => null)
   const doc = env.document ?? (typeof document !== 'undefined' ? document : null)
 
-  const systemPrefersDark = ref(
-    resolveMatchMedia('(prefers-color-scheme: dark)')?.matches ?? false,
-  )
+  const mql = resolveMatchMedia('(prefers-color-scheme: dark)')
+  const systemPrefersDark = ref(mql?.matches ?? false)
   const restoreResolver = setSystemPrefersDarkResolver(() => systemPrefersDark.value)
 
   const onChange = (event: { matches: boolean }) => {
     systemPrefersDark.value = event.matches
   }
-  const mql = resolveMatchMedia('(prefers-color-scheme: dark)')
   mql?.addEventListener('change', onChange)
 
   const apply = (resolved: ConcreteTheme) => {
@@ -99,9 +88,9 @@ export function initThemeController(
   const dispose = () => {
     if (disposed) return
     disposed = true
+    stopWatch()
     restoreResolver()
     mql?.removeEventListener('change', onChange)
-    stopWatch()
   }
   return { systemPrefersDark, dispose }
 }

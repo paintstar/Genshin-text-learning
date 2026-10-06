@@ -89,6 +89,21 @@ describe('initThemeController', () => {
     expect(naiveThemeFor(preferences.resolvedTheme)).toBe(darkTheme)
   })
 
+  it('主题已被读取后仍可初始化和重新装配系统监听', async () => {
+    const preferences = usePreferencesStore()
+    expect(preferences.resolvedTheme).toBe('light')
+    const media = fakeMatchMedia(true)
+    const { doc, classList } = fakeDocument()
+    controller = initThemeController(preferences, { matchMedia: media.matchMedia, document: doc })
+    expect(preferences.resolvedTheme).toBe('dark')
+    controller.dispose()
+    controller = initThemeController(preferences, { matchMedia: media.matchMedia, document: doc })
+    media.dispatch(false)
+    await nextTick()
+    expect(preferences.resolvedTheme).toBe('light')
+    expect(classList.contains(DARK_THEME_CLASS)).toBe(false)
+  })
+
   it('matchMedia change 驱动 class 增删与 naive 主题联动', async () => {
     const preferences = usePreferencesStore()
     preferences.theme = 'system'

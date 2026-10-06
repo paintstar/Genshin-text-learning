@@ -1,7 +1,7 @@
 /** 界面偏好 store：主题/全局字号/阅读字号/行距/页宽的唯一状态源，经 gateway 设置通道持久化。 */
 
 import { defineStore } from 'pinia'
-import { watch, type WatchStopHandle } from 'vue'
+import { shallowRef, watch, type WatchStopHandle } from 'vue'
 import { getGateway } from '@/gateway/provider'
 
 export type ThemePreference = 'system' | 'light' | 'dark' | 'green' | 'sakura' | 'aqua'
@@ -41,22 +41,24 @@ const PREFERENCE_KEYS = {
   lineHeight: 'reader.line_height',
   pageWidth: 'reader.page_width',
 } as const
+type PreferenceField = keyof typeof PREFERENCE_KEYS
+const preferenceFields = Object.keys(PREFERENCE_KEYS) as PreferenceField[]
 
 const defaultSystemPrefersDark: () => boolean = () =>
   typeof window !== 'undefined' &&
   window.matchMedia('(prefers-color-scheme: dark)').matches
-let systemPrefersDark: () => boolean = defaultSystemPrefersDark
+const systemPrefersDark = shallowRef(defaultSystemPrefersDark)
 
 /** 测试注入：覆写系统深色偏好取值函数；返回还原函数（调用后恢复默认实现）。 */
 export function setSystemPrefersDarkResolver(fn: () => boolean): () => void {
-  systemPrefersDark = fn
+  systemPrefersDark.value = fn
   return () => {
-    systemPrefersDark = defaultSystemPrefersDark
+    if (systemPrefersDark.value === fn) systemPrefersDark.value = defaultSystemPrefersDark
   }
 }
 
 /** 各 store 实例已注册的持久化 watch stop handle。不进 reactive state：$reset() 不清零，跨 pinia 实例互不泄漏，旧实例连同 watch 可被 GC。 */
-const persistWatchStops = new WeakMap<object, WatchStopHandle>()
+const persistence = new WeakMap<object, { stop: WatchStopHandle; retry: () => Promise<void> }>()
 
 export const usePreferencesStore = defineStore('preferences', {
   state: () => ({
@@ -67,55 +69,75 @@ export const usePreferencesStore = defineStore('preferences', {
     pageWidth: 'standard' as PageWidthPreference,
     /** 是否已完成一次 load（此后偏好变更才允许持久化）。 */
     loaded: false,
+    saveError: false,
   }),
   getters: {
     resolvedTheme(state): ConcreteTheme {
       if (state.theme !== 'system') return state.theme
-      return systemPrefersDark() ? 'dark' : 'light'
+      return systemPrefersDark.value() ? 'dark' : 'light'
     },
   },
   actions: {
     async load(): Promise<void> {
+      this.loaded = false
       try {
         const gw = getGateway()
-        const [theme, uiFontSize, fontSize, lineHeight, pageWidth] = await Promise.all([
-          gw.settingsGet(PREFERENCE_KEYS.theme),
-          gw.settingsGet(PREFERENCE_KEYS.uiFontSize),
-          gw.settingsGet(PREFERENCE_KEYS.fontSize),
-          gw.settingsGet(PREFERENCE_KEYS.lineHeight),
-          gw.settingsGet(PREFERENCE_KEYS.pageWidth),
-        ])
+        const values = await Promise.allSettled(
+          preferenceFields.map((field) => gw.settingsGet(PREFERENCE_KEYS[field])),
+        )
+        const [theme, uiFontSize, fontSize, lineHeight, pageWidth] = values.map(
+          (result) => result.status === 'fulfilled' ? result.value : null,
+        )
         if (isTheme(theme)) this.theme = theme
         if (isFontSize(uiFontSize)) this.uiFontSize = uiFontSize
         if (isFontSize(fontSize)) this.fontSize = fontSize
         if (isLineHeight(lineHeight)) this.lineHeight = lineHeight
         if (isPageWidth(pageWidth)) this.pageWidth = pageWidth
       } catch {
-        /* 读取失败：整体保持内置默认（Promise.all 任一失败即全部默认，与 App.vue 等价） */
+        /* 通道不可用时保持当前偏好。单项读取失败不影响其他项。 */
       }
       this.loaded = true
     },
     startPersist(): void {
-      if (persistWatchStops.has(this)) return
-      const stop = watch(
-        () => [this.theme, this.uiFontSize, this.fontSize, this.lineHeight, this.pageWidth],
-        async () => {
-          if (!this.loaded) return
+      if (persistence.has(this)) return
+      const pending = new Map<PreferenceField, Promise<void>>()
+      const failed = new Set<PreferenceField>()
+      const save = (field: PreferenceField) => {
+        const value = this[field]
+        // 同一设置按选择顺序写入，避免较慢的旧请求覆盖新选择。
+        const task = (pending.get(field) ?? Promise.resolve()).then(async () => {
           try {
-            const gw = getGateway()
-            await Promise.all([
-              gw.settingsSet(PREFERENCE_KEYS.theme, this.theme),
-              gw.settingsSet(PREFERENCE_KEYS.uiFontSize, this.uiFontSize),
-              gw.settingsSet(PREFERENCE_KEYS.fontSize, this.fontSize),
-              gw.settingsSet(PREFERENCE_KEYS.lineHeight, this.lineHeight),
-              gw.settingsSet(PREFERENCE_KEYS.pageWidth, this.pageWidth),
-            ])
+            await getGateway().settingsSet(PREFERENCE_KEYS[field], value)
+            failed.delete(field)
           } catch {
-            /* 当前窗口内的偏好仍然生效 */
+            failed.add(field)
           }
+          this.saveError = failed.size > 0
+        })
+        pending.set(field, task)
+        return task
+      }
+      const stop = watch(
+        () => preferenceFields.map((field) => this[field]),
+        (values, previous) => {
+          if (!this.loaded) return
+          preferenceFields.forEach((field, index) => {
+            if (values[index] !== previous[index]) void save(field)
+          })
         },
+        { flush: 'sync' },
       )
-      persistWatchStops.set(this, stop)
+      persistence.set(this, {
+        stop,
+        retry: async () => { await Promise.all([...failed].map(save)) },
+      })
+    },
+    async retrySave(): Promise<void> {
+      await persistence.get(this)?.retry()
+    },
+    stopPersist(): void {
+      persistence.get(this)?.stop()
+      persistence.delete(this)
     },
   },
 })

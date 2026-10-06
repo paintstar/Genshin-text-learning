@@ -11,7 +11,7 @@ const preferences = usePreferencesStore()
 const open = defineModel<boolean>('open', { default: false })
 </script>
 <template>
-  <n-button secondary size="small" @click="open = !open"
+  <n-button secondary size="small" :aria-expanded="open" @click="open = !open"
     ><template #icon><AppIcon name="settings" :size="15" /></template
     >排版</n-button
   >
@@ -19,7 +19,7 @@ const open = defineModel<boolean>('open', { default: false })
     <p class="reader-layout-hint">仅作用于阅读界面，调整后立即生效并自动保存。</p>
     <div class="layout-field">
       <span class="layout-field-label">阅读字号</span>
-      <n-radio-group v-model:value="preferences.fontSize" size="small"
+      <n-radio-group v-model:value="preferences.fontSize" size="small" class="preference-options" :disabled="!preferences.loaded" aria-label="阅读字号"
         ><n-radio-button
           v-for="opt in FONT_SIZE_OPTIONS"
           :key="opt.value"
@@ -30,7 +30,7 @@ const open = defineModel<boolean>('open', { default: false })
     </div>
     <div class="layout-field">
       <span class="layout-field-label">阅读行距</span>
-      <n-radio-group v-model:value="preferences.lineHeight" size="small"
+      <n-radio-group v-model:value="preferences.lineHeight" size="small" class="preference-options" :disabled="!preferences.loaded" aria-label="阅读行距"
         ><n-radio-button
           v-for="opt in LINE_HEIGHT_OPTIONS"
           :key="opt.value"
@@ -41,7 +41,7 @@ const open = defineModel<boolean>('open', { default: false })
     </div>
     <div class="layout-field">
       <span class="layout-field-label">页面宽度</span>
-      <n-radio-group v-model:value="preferences.pageWidth" size="small"
+      <n-radio-group v-model:value="preferences.pageWidth" size="small" class="preference-options" :disabled="!preferences.loaded" aria-label="页面宽度"
         ><n-radio-button
           v-for="opt in PAGE_WIDTH_OPTIONS"
           :key="opt.value"

@@ -1,10 +1,3 @@
-/**
- * preferences store 行为契约测试：load 回退默认/合法赋值/单键异常容错（主题、
- * 全局字号、阅读字号、行距、页宽各键独立守卫）、持久化触发与守卫（loaded 前
- * 不写、startPersist 幂等、$reset 后仍幂等）、resolvedTheme 系统偏好解析与
- * resolver 还原、持久化失败静默。
- */
-
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
 import { nextTick } from 'vue'
@@ -113,7 +106,7 @@ it('全局字号单键非法值回退默认，其余键照常赋值', async () =
   expect(preferences.loaded).toBe(true)
 })
 
-it('单键读取异常整体容错：不 reject、全部保持默认、仍标记 loaded', async () => {
+it('单键读取异常不影响其他设置的恢复', async () => {
   const gateway = new MockGateway()
   gateway.settingsGet = vi.fn(async (key: string) => {
     if (key === 'reader.font_size') throw new Error('读取失败')
@@ -122,7 +115,7 @@ it('单键读取异常整体容错：不 reject、全部保持默认、仍标记
   setGateway(gateway)
   const preferences = usePreferencesStore()
   await expect(preferences.load()).resolves.toBeUndefined()
-  expect(preferences.theme).toBe('system')
+  expect(preferences.theme).toBe('dark')
   expect(preferences.uiFontSize).toBe('standard')
   expect(preferences.fontSize).toBe('standard')
   expect(preferences.lineHeight).toBe('standard')
@@ -130,7 +123,7 @@ it('单键读取异常整体容错：不 reject、全部保持默认、仍标记
   expect(preferences.loaded).toBe(true)
 })
 
-it('loaded 后的变更触发 5 键全量持久化', async () => {
+it('仅持久化发生变化的设置', async () => {
   const gateway = new MockGateway()
   const setSpy = vi.fn(async () => {})
   gateway.settingsSet = setSpy
@@ -140,15 +133,11 @@ it('loaded 后的变更触发 5 键全量持久化', async () => {
   await preferences.load()
   preferences.theme = 'dark'
   await flushPersist()
-  expect(setSpy).toHaveBeenCalledTimes(5)
+  expect(setSpy).toHaveBeenCalledTimes(1)
   expect(setSpy).toHaveBeenCalledWith('ui.theme', 'dark')
-  expect(setSpy).toHaveBeenCalledWith('ui.font_size', 'standard')
-  expect(setSpy).toHaveBeenCalledWith('reader.font_size', 'standard')
-  expect(setSpy).toHaveBeenCalledWith('reader.line_height', 'standard')
-  expect(setSpy).toHaveBeenCalledWith('reader.page_width', 'standard')
 })
 
-it('新主题值照常持久化：ui.theme 键名与 5 键全量写入格式不变', async () => {
+it('新主题值照常持久化', async () => {
   const gateway = new MockGateway()
   const setSpy = vi.fn(async () => {})
   gateway.settingsSet = setSpy
@@ -158,12 +147,8 @@ it('新主题值照常持久化：ui.theme 键名与 5 键全量写入格式不�
   await preferences.load()
   preferences.theme = 'sakura'
   await flushPersist()
-  expect(setSpy).toHaveBeenCalledTimes(5)
+  expect(setSpy).toHaveBeenCalledTimes(1)
   expect(setSpy).toHaveBeenCalledWith('ui.theme', 'sakura')
-  expect(setSpy).toHaveBeenCalledWith('ui.font_size', 'standard')
-  expect(setSpy).toHaveBeenCalledWith('reader.font_size', 'standard')
-  expect(setSpy).toHaveBeenCalledWith('reader.line_height', 'standard')
-  expect(setSpy).toHaveBeenCalledWith('reader.page_width', 'standard')
 })
 
 it('全局字号变更持久化写入 ui.font_size 键', async () => {
@@ -177,7 +162,7 @@ it('全局字号变更持久化写入 ui.font_size 键', async () => {
   preferences.uiFontSize = 'xlarge'
   await flushPersist()
   expect(setSpy).toHaveBeenCalledWith('ui.font_size', 'xlarge')
-  expect(setSpy).toHaveBeenCalledTimes(5)
+  expect(setSpy).toHaveBeenCalledTimes(1)
 })
 
 it('load 完成前的变更不持久化', async () => {
@@ -203,7 +188,7 @@ it('startPersist 同实例重复调用幂等，不重复注册 watch', async () 
   await preferences.load()
   preferences.theme = 'dark'
   await flushPersist()
-  expect(setSpy).toHaveBeenCalledTimes(5)
+  expect(setSpy).toHaveBeenCalledTimes(1)
 })
 
 it('$reset 后再次 startPersist 仍幂等（守卫不随 state 清零）', async () => {
@@ -218,10 +203,10 @@ it('$reset 后再次 startPersist 仍幂等（守卫不随 state 清零）', asy
   await preferences.load()
   preferences.theme = 'dark'
   await flushPersist()
-  expect(setSpy).toHaveBeenCalledTimes(5)
+  expect(setSpy).toHaveBeenCalledTimes(1)
 })
 
-it('持久化失败静默，偏好值保留', async () => {
+it('持久化失败显示状态，偏好值保留', async () => {
   const gateway = new MockGateway()
   gateway.settingsSet = vi.fn(async () => {
     throw new Error('写入失败')
@@ -233,6 +218,7 @@ it('持久化失败静默，偏好值保留', async () => {
   preferences.theme = 'dark'
   await flushPersist()
   expect(preferences.theme).toBe('dark')
+  expect(preferences.saveError).toBe(true)
 })
 
 it('resolvedTheme 在 system 下跟随系统深色偏好', () => {
@@ -283,4 +269,73 @@ it('resolver 还原函数调用后恢复默认系统偏好实现', () => {
   // node 环境无 window，默认 resolver 返回 false（视为浅色）。
   // 首次访问 getter 前不读 resolvedTheme，避免 computed 缓存先于还原生效。
   expect(preferences.resolvedTheme).toBe('light')
+})
+
+it('恢复已保存设置时不写回默认值或未读成功的设置', async () => {
+  const gateway = new MockGateway()
+  gateway.settingsGet = vi.fn(async (key) => {
+    if (key === 'reader.page_width') throw new Error('读取失败')
+    return key === 'ui.theme' ? 'dark' : null
+  })
+  const setSpy = vi.spyOn(gateway, 'settingsSet')
+  setGateway(gateway)
+  const preferences = usePreferencesStore()
+  preferences.startPersist()
+  await preferences.load()
+  await flushPersist()
+  expect(setSpy).not.toHaveBeenCalled()
+  preferences.uiFontSize = 'large'
+  await flushPersist()
+  expect(setSpy.mock.calls).toEqual([['ui.font_size', 'large']])
+})
+
+it('旧写入未完成时快速切换，最终保存最新选择', async () => {
+  const gateway = new MockGateway()
+  let finishFirst!: () => void
+  const firstWrite = new Promise<void>((resolve) => { finishFirst = resolve })
+  const write = gateway.settingsSet.bind(gateway)
+  const setSpy = vi.spyOn(gateway, 'settingsSet').mockImplementation(async (key, value) => {
+    if (value === 'dark') await firstWrite
+    await write(key, value)
+  })
+  setGateway(gateway)
+  const preferences = usePreferencesStore()
+  await preferences.load()
+  preferences.startPersist()
+  preferences.theme = 'dark'
+  await flushPersist()
+  preferences.theme = 'sakura'
+  await flushPersist()
+  expect(setSpy).toHaveBeenCalledTimes(1)
+  finishFirst()
+  await vi.waitFor(async () => {
+    expect(await gateway.settingsGet('ui.theme')).toBe('sakura')
+  })
+  expect(setSpy.mock.calls).toEqual([['ui.theme', 'dark'], ['ui.theme', 'sakura']])
+})
+
+it('保存失败后仅重试失败项，其他项成功不会清除错误', async () => {
+  const gateway = new MockGateway()
+  const write = gateway.settingsSet.bind(gateway)
+  let failTheme = true
+  const setSpy = vi.spyOn(gateway, 'settingsSet').mockImplementation(async (key, value) => {
+    if (key === 'ui.theme' && failTheme) throw new Error('写入失败')
+    await write(key, value)
+  })
+  setGateway(gateway)
+  const preferences = usePreferencesStore()
+  await preferences.load()
+  preferences.startPersist()
+  preferences.theme = 'dark'
+  await vi.waitFor(() => expect(preferences.saveError).toBe(true))
+  preferences.fontSize = 'large'
+  await vi.waitFor(async () => expect(await gateway.settingsGet('reader.font_size')).toBe('large'))
+  expect(preferences.saveError).toBe(true)
+  failTheme = false
+  await preferences.retrySave()
+  expect(preferences.saveError).toBe(false)
+  expect(await gateway.settingsGet('ui.theme')).toBe('dark')
+  expect(setSpy.mock.calls).toEqual([
+    ['ui.theme', 'dark'], ['reader.font_size', 'large'], ['ui.theme', 'dark'],
+  ])
 })
