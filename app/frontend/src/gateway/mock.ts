@@ -130,6 +130,7 @@ export class MockGateway implements Gateway {
     },
   ]
   private nextId = 1
+  private settings = new Map<string, string>()
 
   async appInit(): Promise<AppInitInfo> {
     return {
@@ -141,10 +142,12 @@ export class MockGateway implements Gateway {
       pendingRestore: false,
     }
   }
-  async settingsGet(): Promise<string | null> {
-    return null
+  async settingsGet(key: string): Promise<string | null> {
+    return this.settings.get(key) ?? null
   }
-  async settingsSet(): Promise<void> {}
+  async settingsSet(key: string, value: string): Promise<void> {
+    this.settings.set(key, value)
+  }
   async termsAccept(): Promise<void> {}
   async termsStatus(): Promise<boolean> {
     return true

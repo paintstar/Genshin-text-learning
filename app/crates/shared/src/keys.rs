@@ -20,6 +20,14 @@ pub const SETTINGS_KEYS: &[(&str, &str)] = &[
     ("reader.traveler", "M"),
     // 阅读器界面语言（用于任务名等界面文本的取值语言，游戏文本码族）。
     ("reader.ui_lang", "chs"),
+    // 阅读器正文字号：small | standard | large | xlarge。
+    ("reader.font_size", "standard"),
+    // 阅读器正文行距：compact | standard | loose。
+    ("reader.line_height", "standard"),
+    // 阅读器内容页宽：narrow | standard | wide。
+    ("reader.page_width", "standard"),
+    // 界面主题：system 跟随系统 | light 浅色 | dark 深色。
+    ("ui.theme", "system"),
 ];
 
 pub fn is_valid_key(key: &str) -> bool {
@@ -52,5 +60,17 @@ mod tests {
         for (k, _) in SETTINGS_KEYS {
             assert!(seen.insert(*k), "duplicate settings key {k}");
         }
+    }
+
+    #[test]
+    fn ui_preference_keys() {
+        assert!(is_valid_key("ui.theme"));
+        assert_eq!(default_value("ui.theme"), Some("system"));
+        assert!(is_valid_key("reader.font_size"));
+        assert_eq!(default_value("reader.font_size"), Some("standard"));
+        assert!(is_valid_key("reader.line_height"));
+        assert_eq!(default_value("reader.line_height"), Some("standard"));
+        assert!(is_valid_key("reader.page_width"));
+        assert_eq!(default_value("reader.page_width"), Some("standard"));
     }
 }

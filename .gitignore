@@ -1,6 +1,7 @@
 # Public repository contains the application, its documentation and original brief.
 /*
 !/.gitignore
+!/AGENTS.md
 !/README.md
 !/require.md
 !/THIRD_PARTY_NOTICES.md
