@@ -125,7 +125,7 @@ async function save(id: number) {
                     ? '句子'
                     : '笔记'
               }}</n-tag
-            ><span style="font-size: 10px; color: #9aa68e">{{
+            ><span style="font-size: 10px; color: var(--text-faint)">{{
               note.questTitle || '剧情收藏'
             }}</span>
           </div>
@@ -201,11 +201,11 @@ async function save(id: number) {
 <style scoped>
 .personal-note {
   padding: 12px 15px;
-  background: #f4f6ef;
+  background: var(--surface-subtle);
   border-radius: 8px;
   white-space: pre-wrap;
   font-size: 13px;
-  color: #748168;
+  color: var(--muted);
   line-height: 1.8;
 }
 </style>

@@ -14,7 +14,7 @@ const reader = useReaderStore()
 <template>
   <n-card title="主题" size="small"
     ><p class="setting-copy">
-      选择浅色、深色或跟随系统。偏好会自动保存，重启后仍会记住；界面配色将在后续版本生效。
+      选择浅色、深色或跟随系统。偏好会自动保存，重启后仍会记住；界面配色会立即生效。
     </p>
     <n-radio-group v-model:value="preferences.theme"
       ><n-radio-button
@@ -70,7 +70,7 @@ const reader = useReaderStore()
 </template>
 <style scoped>
 .setting-copy {
-  color: #829076;
+  color: var(--muted);
   font-size: 13px;
   line-height: 1.9;
   margin: 8px 0 18px;
@@ -84,10 +84,10 @@ const reader = useReaderStore()
   padding: 14px 0;
 }
 .pref-row + .pref-row {
-  border-top: 1px solid #edf0e8;
+  border-top: 1px solid var(--line-soft);
 }
 .pref-label {
   font-size: 13px;
-  color: #53635c;
+  color: var(--text-soft);
 }
 </style>

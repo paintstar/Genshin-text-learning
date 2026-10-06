@@ -103,7 +103,7 @@ async function saveConv() {
   align-self: flex-end;
 }
 .bubble {
-  background: #f5f5f5;
+  background: var(--paper-dim);
   border-radius: 8px;
   padding: 8px;
   max-width: 100%;

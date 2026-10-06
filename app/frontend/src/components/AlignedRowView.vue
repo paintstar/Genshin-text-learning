@@ -138,16 +138,16 @@ function clickUnit(start: number, end: number) {
 <style scoped>
 .aligned-row {
   padding: 23px 27px;
-  border-bottom: 1px solid #f0f2ec;
+  border-bottom: 1px solid var(--line-soft);
   position: relative;
   transition: background 0.15s;
 }
 .aligned-row:hover {
-  background: #fdfef9;
+  background: var(--paper-dim);
 }
 .aligned-row.frontier {
-  background: #f2f6ec;
-  box-shadow: inset 3px 0 #91aa78;
+  background: var(--surface-subtle);
+  box-shadow: inset 3px 0 var(--decor);
 }
 .line-meta {
   display: flex;
@@ -159,25 +159,25 @@ function clickUnit(start: number, end: number) {
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: #a1b38f;
+  background: var(--decor);
 }
 .role {
-  color: #59704e;
+  color: var(--text-soft);
   font-size: 12px;
   font-weight: 550;
 }
 .role-ja {
-  color: #aab39e;
+  color: var(--text-faint);
   font-size: 10px;
 }
 .choice-label {
-  color: #99a387;
+  color: var(--text-faint);
   font-size: 10px;
   margin-left: auto;
 }
 .jp {
   line-height: 2.35;
-  color: #364230;
+  color: var(--ink-deep);
   overflow-wrap: anywhere;
 }
 .jp-text {
@@ -188,26 +188,26 @@ function clickUnit(start: number, end: number) {
   font-size: 10px;
   user-select: none;
   -webkit-user-select: none;
-  color: #9aa68b;
+  color: var(--text-faint);
 }
 .word {
   border-radius: 3px;
   cursor: pointer;
 }
 .word:hover {
-  background: #e5ecd9;
+  background: var(--surface-active);
 }
 .chs {
-  color: #89947d;
+  color: var(--muted);
   font-size: 13px;
   line-height: 1.9;
   margin-top: 7px;
 }
 .missing {
-  color: #b2baab;
+  color: var(--text-faint);
   font-size: 12px;
 }
 .choice {
-  background: #fafbf7;
+  background: var(--paper-dim);
 }
 </style>

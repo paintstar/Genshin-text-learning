@@ -160,7 +160,7 @@ async function query() {
   font-weight: 500;
 }
 .reading {
-  color: #829871;
+  color: var(--muted);
   font-size: 14px;
 }
 .parts {
@@ -172,20 +172,20 @@ async function query() {
 .definition {
   display: flex;
   gap: 20px;
-  border-top: 1px solid #edf0e8;
+  border-top: 1px solid var(--line-soft);
   padding-top: 12px;
   margin-top: 12px;
 }
 .definition > span {
   font-size: 10px;
-  color: #9aa68d;
+  color: var(--text-faint);
   padding-top: 5px;
 }
 .definition ol {
   margin: 0;
   padding-left: 18px;
   line-height: 2;
-  color: #5b6b51;
+  color: var(--text-soft);
   font-size: 14px;
 }
 .dictionary-welcome {
@@ -196,23 +196,23 @@ async function query() {
   font-family: 'Songti SC', serif;
   font-size: 70px;
   letter-spacing: 14px;
-  color: #c2cdb6;
+  color: var(--decor-soft);
 }
 .dictionary-welcome h3 {
   margin: 24px 0 12px;
   font-size: 18px;
   font-weight: 500;
-  color: #758767;
+  color: var(--muted);
 }
 .dictionary-welcome p {
   font-size: 13px;
-  color: #9aa68d;
+  color: var(--text-faint);
 }
 .dictionary-features {
   display: flex;
   justify-content: center;
   gap: 24px;
-  color: #9ba88e;
+  color: var(--text-faint);
   font-size: 11px;
   margin-top: 28px;
 }

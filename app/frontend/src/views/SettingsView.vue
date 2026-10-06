@@ -469,7 +469,7 @@ async function restore() {
   gap: 18px;
 }
 .setting-copy {
-  color: #829076;
+  color: var(--muted);
   font-size: 13px;
   line-height: 1.9;
   margin: 8px 0 18px;
@@ -490,11 +490,11 @@ async function restore() {
   gap: 15px;
   flex-wrap: wrap;
   padding: 16px 0;
-  border-top: 1px solid #edf0e8;
+  border-top: 1px solid var(--line-soft);
 }
 .sync-status {
   margin-top: 20px;
-  color: #829076;
+  color: var(--muted);
   font-size: 12px;
 }
 @media (max-width: 680px) {

@@ -1,10 +1,12 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
-import { zhCN, dateZhCN, type GlobalThemeOverrides } from 'naive-ui'
+import { zhCN, dateZhCN } from 'naive-ui'
 import { useAiStore } from '@/stores/ai'
 import { useSettingsStore } from '@/stores/settings'
 import { usePreferencesStore } from '@/stores/preferences'
+import { initThemeController } from '@/modules/theme/themeController'
+import { naiveThemeFor, themeOverridesFor } from '@/modules/theme/themeOverrides'
 import AiPanel from './components/AiPanel.vue'
 import AppIcon from './components/AppIcon.vue'
 import { useReaderStore } from '@/stores/reader'
@@ -15,6 +17,7 @@ const ai = useAiStore()
 const settings = useSettingsStore()
 const reader = useReaderStore()
 const preferences = usePreferencesStore()
+initThemeController(preferences)
 const preferencesReady = ref(false)
 const showAi = ref(false)
 const nav = [
@@ -39,24 +42,8 @@ const section = computed(() =>
         (n) => n.name === route.name,
       )?.label,
 )
-const theme: GlobalThemeOverrides = {
-  common: {
-    primaryColor: '#326957',
-    primaryColorHover: '#43836d',
-    primaryColorPressed: '#254e41',
-    primaryColorSuppl: '#326957',
-    borderRadius: '10px',
-    textColorBase: '#273a34',
-    textColor2: '#53635c',
-    bodyColor: '#f7f8f4',
-    cardColor: '#ffffff',
-    borderColor: '#e2e7de',
-    fontFamily:
-      '-apple-system, BlinkMacSystemFont, "PingFang SC", "Noto Sans CJK SC", sans-serif',
-  },
-  Button: { fontWeight: '500' },
-  Card: { borderRadius: '16px', titleFontSizeSmall: '16px' },
-}
+const naiveTheme = computed(() => naiveThemeFor(preferences.resolvedTheme))
+const themeOverrides = computed(() => themeOverridesFor(preferences.resolvedTheme))
 onMounted(async () => {
   await settings.refreshInit()
   preferences.startPersist()
@@ -106,7 +93,8 @@ watch(
   <n-config-provider
     :locale="zhCN"
     :date-locale="dateZhCN"
-    :theme-overrides="theme"
+    :theme="naiveTheme"
+    :theme-overrides="themeOverrides"
   >
     <n-message-provider>
       <div class="app-shell">

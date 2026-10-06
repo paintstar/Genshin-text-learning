@@ -333,7 +333,7 @@ function windowLinesFor(row: AlignedRow) {
           align-items: center;
           gap: 8px;
           font-size: 12px;
-          color: #7d8e6b;
+          color: var(--muted);
         "
         ><n-switch
           v-model:value="reader.furiganaOn"
@@ -381,7 +381,7 @@ function windowLinesFor(row: AlignedRow) {
         </div>
         <div
           v-if="reader.mode === 'overview'"
-          style="padding: 16px 24px; border-bottom: 1px solid #eef0e9"
+          style="padding: 16px 24px; border-bottom: 1px solid var(--line-soft)"
         >
           <n-input
             v-model:value="find"

@@ -170,8 +170,8 @@ const emit = defineEmits<{
   cursor: default;
 }
 .token.selected {
-  background: #edf3e3;
-  outline: 1px solid #c5d8ad;
+  background: var(--surface-subtle);
+  outline: 1px solid var(--decor-soft);
 }
 .token.unknown {
   color: #d03050;
@@ -180,12 +180,12 @@ const emit = defineEmits<{
   margin-bottom: 8px;
 }
 .hit-head .meta {
-  color: #888;
+  color: var(--muted);
   font-size: 12px;
   margin-left: 6px;
 }
 .reading {
-  color: #7b9668;
+  color: var(--muted);
   font-size: 13px;
 }
 .entries {
@@ -196,7 +196,7 @@ const emit = defineEmits<{
   margin-left: 6px;
 }
 .no-dict {
-  color: #999;
+  color: var(--text-faint);
   font-size: 13px;
 }
 .actions {
@@ -209,6 +209,6 @@ const emit = defineEmits<{
   gap: 6px;
 }
 .empty {
-  color: #999;
+  color: var(--text-faint);
 }
 </style>
