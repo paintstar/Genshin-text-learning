@@ -181,12 +181,12 @@ const emit = defineEmits<{
 }
 .hit-head .meta {
   color: var(--muted);
-  font-size: 12px;
+  font-size: calc(12px * var(--ui-font-scale, 1));
   margin-left: 6px;
 }
 .reading {
   color: var(--muted);
-  font-size: 13px;
+  font-size: calc(13px * var(--ui-font-scale, 1));
 }
 .entries {
   margin: 4px 0 0 0;
@@ -197,7 +197,7 @@ const emit = defineEmits<{
 }
 .no-dict {
   color: var(--text-faint);
-  font-size: 13px;
+  font-size: calc(13px * var(--ui-font-scale, 1));
 }
 .actions {
   margin-top: 4px;

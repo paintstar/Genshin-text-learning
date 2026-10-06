@@ -470,7 +470,7 @@ async function restore() {
 }
 .setting-copy {
   color: var(--muted);
-  font-size: 13px;
+  font-size: calc(13px * var(--ui-font-scale, 1));
   line-height: 1.9;
   margin: 8px 0 18px;
 }
@@ -495,7 +495,7 @@ async function restore() {
 .sync-status {
   margin-top: 20px;
   color: var(--muted);
-  font-size: 12px;
+  font-size: calc(12px * var(--ui-font-scale, 1));
 }
 @media (max-width: 680px) {
   .form-grid {

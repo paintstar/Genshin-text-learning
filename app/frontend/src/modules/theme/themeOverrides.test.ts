@@ -2,7 +2,8 @@
  * themeOverrides 纯数据测试：各主题关键色与主题无关条目、深色与浅色确实不同、
  * 选择函数与 naive 主题映射（常量引用 + darkTheme/null）、与 styles.css 各主题
  * 调色板同源锁定（改 CSS 调色板漏改 overrides 时测试失败）、主题块纯度与
- * 变量集一致性（主题块只覆盖变量值与 color-scheme，不新增规则、不遗漏变量）。
+ * 变量集一致性（主题块只覆盖变量值与 color-scheme，不新增规则、不遗漏变量）、
+ * 字号族与组件字号锁定（calc 落地、五套常量一致、基值对齐 naive 默认）。
  * styles.css 用 node fs 原文读取（vite `?raw` 在 vitest 中会被 stub 成空串）；
  * 项目 tsconfig types 未含 node（无 @types/node），导入处以 @ts-expect-error
  * 压制模块声明缺失，运行时由 node 环境解析真实 node:fs。
@@ -167,6 +168,24 @@ describe('themeOverrides', () => {
     expect(cssBlockBody('html.dark')).toContain('color-scheme: dark')
     for (const selector of themeBlockSelectors.slice(1)) {
       expect(cssBlockBody(selector)).toContain('color-scheme: light')
+    }
+  })
+
+  it('字号族与组件字号：calc 落地、五套常量一致、基值对齐 naive 默认', () => {
+    const calc = (px: number) => `calc(${px}px * var(--ui-font-scale, 1))`
+    for (const o of [lightOverrides, darkOverrides, greenOverrides, sakuraOverrides, aquaOverrides]) {
+      expect(o.common?.fontSize).toBe(calc(14))
+      expect(o.common?.fontSizeMini).toBe(calc(12))
+      expect(o.common?.fontSizeTiny).toBe(calc(12))
+      expect(o.common?.fontSizeSmall).toBe(calc(14))
+      expect(o.common?.fontSizeMedium).toBe(calc(14))
+      expect(o.common?.fontSizeLarge).toBe(calc(15))
+      expect(o.common?.fontSizeHuge).toBe(calc(16))
+      expect(o.Card?.titleFontSizeSmall).toBe(calc(16))
+      expect(o.Message?.fontSize).toBe(calc(14))
+      expect(o.Drawer?.titleFontSize).toBe(calc(18))
+      expect(o.Form?.labelFontSizeTopMedium).toBe(calc(14))
+      expect(o.Form?.feedbackFontSizeMedium).toBe(calc(14))
     }
   })
 })

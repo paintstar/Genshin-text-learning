@@ -28,6 +28,8 @@ pub const SETTINGS_KEYS: &[(&str, &str)] = &[
     ("reader.page_width", "standard"),
     // 界面主题：system 跟随系统 | light 浅色 | dark 深色。
     ("ui.theme", "system"),
+    // 应用全局界面字号（作用于整个应用界面，区别于阅读区字号 reader.font_size）。
+    ("ui.font_size", "standard"),
 ];
 
 pub fn is_valid_key(key: &str) -> bool {
@@ -66,6 +68,8 @@ mod tests {
     fn ui_preference_keys() {
         assert!(is_valid_key("ui.theme"));
         assert_eq!(default_value("ui.theme"), Some("system"));
+        assert!(is_valid_key("ui.font_size"));
+        assert_eq!(default_value("ui.font_size"), Some("standard"));
         assert!(is_valid_key("reader.font_size"));
         assert_eq!(default_value("reader.font_size"), Some("standard"));
         assert!(is_valid_key("reader.line_height"));

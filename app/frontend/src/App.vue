@@ -6,6 +6,7 @@ import { useAiStore } from '@/stores/ai'
 import { useSettingsStore } from '@/stores/settings'
 import { usePreferencesStore } from '@/stores/preferences'
 import { initThemeController } from '@/modules/theme/themeController'
+import { initUiFontController } from '@/modules/ui/uiFontController'
 import { naiveThemeFor, themeOverridesFor } from '@/modules/theme/themeOverrides'
 import AiPanel from './components/AiPanel.vue'
 import AppIcon from './components/AppIcon.vue'
@@ -18,6 +19,7 @@ const settings = useSettingsStore()
 const reader = useReaderStore()
 const preferences = usePreferencesStore()
 initThemeController(preferences)
+initUiFontController(preferences)
 const preferencesReady = ref(false)
 const showAi = ref(false)
 const nav = [

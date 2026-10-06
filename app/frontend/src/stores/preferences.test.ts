@@ -1,7 +1,8 @@
 /**
- * preferences store 行为契约测试：load 回退默认/合法赋值/单键异常容错、
- * 持久化触发与守卫（loaded 前不写、startPersist 幂等、$reset 后仍幂等）、
- * resolvedTheme 系统偏好解析与 resolver 还原、持久化失败静默。
+ * preferences store 行为契约测试：load 回退默认/合法赋值/单键异常容错（主题、
+ * 全局字号、阅读字号、行距、页宽各键独立守卫）、持久化触发与守卫（loaded 前
+ * 不写、startPersist 幂等、$reset 后仍幂等）、resolvedTheme 系统偏好解析与
+ * resolver 还原、持久化失败静默。
  */
 
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
@@ -32,6 +33,7 @@ it('库内无偏好时回退默认并标记 loaded', async () => {
   const preferences = usePreferencesStore()
   await preferences.load()
   expect(preferences.theme).toBe('system')
+  expect(preferences.uiFontSize).toBe('standard')
   expect(preferences.fontSize).toBe('standard')
   expect(preferences.lineHeight).toBe('standard')
   expect(preferences.pageWidth).toBe('standard')
@@ -42,6 +44,7 @@ it('库内合法值逐项赋值', async () => {
   const gateway = new MockGateway()
   const values: Record<string, string> = {
     'ui.theme': 'dark',
+    'ui.font_size': 'large',
     'reader.font_size': 'large',
     'reader.line_height': 'loose',
     'reader.page_width': 'wide',
@@ -51,6 +54,7 @@ it('库内合法值逐项赋值', async () => {
   const preferences = usePreferencesStore()
   await preferences.load()
   expect(preferences.theme).toBe('dark')
+  expect(preferences.uiFontSize).toBe('large')
   expect(preferences.fontSize).toBe('large')
   expect(preferences.lineHeight).toBe('loose')
   expect(preferences.pageWidth).toBe('wide')
@@ -64,6 +68,7 @@ it('库内非法值回退默认', async () => {
   const preferences = usePreferencesStore()
   await preferences.load()
   expect(preferences.theme).toBe('system')
+  expect(preferences.uiFontSize).toBe('standard')
   expect(preferences.fontSize).toBe('standard')
   expect(preferences.lineHeight).toBe('standard')
   expect(preferences.pageWidth).toBe('standard')
@@ -74,6 +79,7 @@ it('库内单键非法主题值回退默认，其余键照常赋值', async () =
   const gateway = new MockGateway()
   const values: Record<string, string> = {
     'ui.theme': 'midnight',
+    'ui.font_size': 'xlarge',
     'reader.font_size': 'large',
     'reader.line_height': 'loose',
     'reader.page_width': 'wide',
@@ -83,9 +89,27 @@ it('库内单键非法主题值回退默认，其余键照常赋值', async () =
   const preferences = usePreferencesStore()
   await preferences.load()
   expect(preferences.theme).toBe('system')
+  expect(preferences.uiFontSize).toBe('xlarge')
   expect(preferences.fontSize).toBe('large')
   expect(preferences.lineHeight).toBe('loose')
   expect(preferences.pageWidth).toBe('wide')
+  expect(preferences.loaded).toBe(true)
+})
+
+it('全局字号单键非法值回退默认，其余键照常赋值', async () => {
+  const gateway = new MockGateway()
+  const values: Record<string, string> = {
+    'ui.theme': 'dark',
+    'ui.font_size': 'huge',
+    'reader.font_size': 'large',
+  }
+  gateway.settingsGet = vi.fn(async (key: string) => values[key] ?? null)
+  setGateway(gateway)
+  const preferences = usePreferencesStore()
+  await preferences.load()
+  expect(preferences.uiFontSize).toBe('standard')
+  expect(preferences.theme).toBe('dark')
+  expect(preferences.fontSize).toBe('large')
   expect(preferences.loaded).toBe(true)
 })
 
@@ -99,13 +123,14 @@ it('单键读取异常整体容错：不 reject、全部保持默认、仍标记
   const preferences = usePreferencesStore()
   await expect(preferences.load()).resolves.toBeUndefined()
   expect(preferences.theme).toBe('system')
+  expect(preferences.uiFontSize).toBe('standard')
   expect(preferences.fontSize).toBe('standard')
   expect(preferences.lineHeight).toBe('standard')
   expect(preferences.pageWidth).toBe('standard')
   expect(preferences.loaded).toBe(true)
 })
 
-it('loaded 后的变更触发 4 键全量持久化', async () => {
+it('loaded 后的变更触发 5 键全量持久化', async () => {
   const gateway = new MockGateway()
   const setSpy = vi.fn(async () => {})
   gateway.settingsSet = setSpy
@@ -115,14 +140,15 @@ it('loaded 后的变更触发 4 键全量持久化', async () => {
   await preferences.load()
   preferences.theme = 'dark'
   await flushPersist()
-  expect(setSpy).toHaveBeenCalledTimes(4)
+  expect(setSpy).toHaveBeenCalledTimes(5)
   expect(setSpy).toHaveBeenCalledWith('ui.theme', 'dark')
+  expect(setSpy).toHaveBeenCalledWith('ui.font_size', 'standard')
   expect(setSpy).toHaveBeenCalledWith('reader.font_size', 'standard')
   expect(setSpy).toHaveBeenCalledWith('reader.line_height', 'standard')
   expect(setSpy).toHaveBeenCalledWith('reader.page_width', 'standard')
 })
 
-it('新主题值照常持久化：ui.theme 键名与 4 键全量写入格式不变', async () => {
+it('新主题值照常持久化：ui.theme 键名与 5 键全量写入格式不变', async () => {
   const gateway = new MockGateway()
   const setSpy = vi.fn(async () => {})
   gateway.settingsSet = setSpy
@@ -132,11 +158,26 @@ it('新主题值照常持久化：ui.theme 键名与 4 键全量写入格式不�
   await preferences.load()
   preferences.theme = 'sakura'
   await flushPersist()
-  expect(setSpy).toHaveBeenCalledTimes(4)
+  expect(setSpy).toHaveBeenCalledTimes(5)
   expect(setSpy).toHaveBeenCalledWith('ui.theme', 'sakura')
+  expect(setSpy).toHaveBeenCalledWith('ui.font_size', 'standard')
   expect(setSpy).toHaveBeenCalledWith('reader.font_size', 'standard')
   expect(setSpy).toHaveBeenCalledWith('reader.line_height', 'standard')
   expect(setSpy).toHaveBeenCalledWith('reader.page_width', 'standard')
+})
+
+it('全局字号变更持久化写入 ui.font_size 键', async () => {
+  const gateway = new MockGateway()
+  const setSpy = vi.fn(async () => {})
+  gateway.settingsSet = setSpy
+  setGateway(gateway)
+  const preferences = usePreferencesStore()
+  preferences.startPersist()
+  await preferences.load()
+  preferences.uiFontSize = 'xlarge'
+  await flushPersist()
+  expect(setSpy).toHaveBeenCalledWith('ui.font_size', 'xlarge')
+  expect(setSpy).toHaveBeenCalledTimes(5)
 })
 
 it('load 完成前的变更不持久化', async () => {
@@ -162,7 +203,7 @@ it('startPersist 同实例重复调用幂等，不重复注册 watch', async () 
   await preferences.load()
   preferences.theme = 'dark'
   await flushPersist()
-  expect(setSpy).toHaveBeenCalledTimes(4)
+  expect(setSpy).toHaveBeenCalledTimes(5)
 })
 
 it('$reset 后再次 startPersist 仍幂等（守卫不随 state 清零）', async () => {
@@ -177,7 +218,7 @@ it('$reset 后再次 startPersist 仍幂等（守卫不随 state 清零）', asy
   await preferences.load()
   preferences.theme = 'dark'
   await flushPersist()
-  expect(setSpy).toHaveBeenCalledTimes(4)
+  expect(setSpy).toHaveBeenCalledTimes(5)
 })
 
 it('持久化失败静默，偏好值保留', async () => {

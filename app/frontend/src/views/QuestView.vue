@@ -342,7 +342,7 @@ function windowLinesFor(row: AlignedRow) {
           display: flex;
           align-items: center;
           gap: 8px;
-          font-size: 12px;
+          font-size: calc(12px * var(--ui-font-scale, 1));
           color: var(--muted);
         "
         ><n-switch

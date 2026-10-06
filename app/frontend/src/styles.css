@@ -170,6 +170,11 @@ html.theme-aqua {
 body {
   margin: 0;
 }
+/* 全局界面字号：naive-ui 预检会向 body 静态注入 14px 字号（n-global），需更高优先级覆盖；
+   --ui-font-scale 由 uiFontController 运行时写入 documentElement。 */
+html body {
+  font-size: calc(14px * var(--ui-font-scale, 1));
+}
 button,
 input,
 textarea {
@@ -214,14 +219,14 @@ a:focus-visible {
   gap: 10px;
   align-items: center;
   color: var(--ink-deep);
-  font-size: 18px;
+  font-size: calc(18px * var(--ui-font-scale, 1));
   font-weight: 650;
   letter-spacing: 1px;
   margin: 0 8px 48px;
 }
 .brand small {
   display: block;
-  font-size: 8px;
+  font-size: calc(8px * var(--ui-font-scale, 1));
   letter-spacing: 1.4px;
   font-weight: 500;
   color: var(--muted);
@@ -237,7 +242,7 @@ a:focus-visible {
 .sidebar-label {
   padding: 0 17px;
   color: var(--text-faint);
-  font-size: 11px;
+  font-size: calc(11px * var(--ui-font-scale, 1));
   letter-spacing: 2px;
   margin-bottom: 15px;
 }
@@ -248,7 +253,7 @@ a:focus-visible {
   padding: 15px 17px;
   border-radius: 10px;
   color: var(--muted);
-  font-size: 14px;
+  font-size: calc(14px * var(--ui-font-scale, 1));
   margin-bottom: 7px;
   transition:
     background 0.18s,
@@ -256,7 +261,7 @@ a:focus-visible {
 }
 .nav-item small {
   display: block;
-  font-size: 10px;
+  font-size: calc(10px * var(--ui-font-scale, 1));
   margin-top: 4px;
   opacity: 0.64;
 }
@@ -278,13 +283,13 @@ a:focus-visible {
 }
 .journey-note p {
   font-family: 'Songti SC', 'Noto Serif CJK SC', serif;
-  font-size: 17px;
+  font-size: calc(17px * var(--ui-font-scale, 1));
   line-height: 1.9;
   color: var(--text-soft);
   margin: 12px 0 8px;
 }
 .journey-note > span {
-  font-size: 10px;
+  font-size: calc(10px * var(--ui-font-scale, 1));
   color: var(--text-faint);
 }
 .ai-entry {
@@ -322,7 +327,7 @@ a:focus-visible {
   align-items: center;
   justify-content: space-between;
   padding: 0 38px;
-  font-size: 12px;
+  font-size: calc(12px * var(--ui-font-scale, 1));
   background: var(--paper-soft);
 }
 .topbar b {
@@ -339,7 +344,7 @@ a:focus-visible {
   display: flex;
   gap: 9px;
   align-items: center;
-  font-size: 11px;
+  font-size: calc(11px * var(--ui-font-scale, 1));
   color: var(--muted);
 }
 .language-pill {
@@ -377,12 +382,12 @@ a:focus-visible {
 .eyebrow {
   color: var(--muted);
   letter-spacing: 2.3px;
-  font-size: 10px;
+  font-size: calc(10px * var(--ui-font-scale, 1));
   font-weight: 600;
   margin-bottom: 10px;
 }
 h1 {
-  font-size: 28px;
+  font-size: calc(28px * var(--ui-font-scale, 1));
   font-weight: 600;
   letter-spacing: 1px;
   line-height: 1.4;
@@ -390,7 +395,7 @@ h1 {
 }
 .subtitle {
   color: var(--muted);
-  font-size: 13px;
+  font-size: calc(13px * var(--ui-font-scale, 1));
   margin: 0;
   line-height: 1.8;
 }
@@ -406,7 +411,7 @@ h1 {
 }
 .hero .hero-title {
   font-family: 'Songti SC', 'Noto Serif CJK SC', serif;
-  font-size: 30px;
+  font-size: calc(30px * var(--ui-font-scale, 1));
   font-weight: 500;
   letter-spacing: 2px;
   line-height: 1.6;
@@ -414,7 +419,7 @@ h1 {
   color: var(--ink-deep);
 }
 .hero p {
-  font-size: 12px;
+  font-size: calc(12px * var(--ui-font-scale, 1));
   color: var(--muted);
   margin: 0;
   max-width: 64%;
@@ -481,7 +486,7 @@ h1 {
   background: transparent;
   color: var(--ink-deep);
   padding: 8px 0;
-  font-size: 14px;
+  font-size: calc(14px * var(--ui-font-scale, 1));
 }
 .search-field input::placeholder {
   color: var(--text-faint);
@@ -497,7 +502,7 @@ h1 {
   background: transparent;
   border-radius: 7px;
   padding: 7px 16px;
-  font-size: 12px;
+  font-size: calc(12px * var(--ui-font-scale, 1));
   color: var(--muted);
 }
 .filter-chip.active {
@@ -515,13 +520,13 @@ h1 {
   margin: 22px 0 15px;
 }
 .section-line h2 {
-  font-size: 15px;
+  font-size: calc(15px * var(--ui-font-scale, 1));
   font-weight: 600;
   margin: 0;
 }
 .section-line span {
   color: var(--text-faint);
-  font-size: 11px;
+  font-size: calc(11px * var(--ui-font-scale, 1));
 }
 .quest-grid {
   display: grid;
@@ -552,7 +557,7 @@ h1 {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  font-size: 10px;
+  font-size: calc(10px * var(--ui-font-scale, 1));
   color: var(--muted);
   margin-bottom: 17px;
 }
@@ -567,11 +572,11 @@ h1 {
 }
 .quest-card h3 {
   margin: 0 0 7px;
-  font-size: 17px;
+  font-size: calc(17px * var(--ui-font-scale, 1));
   font-weight: 550;
 }
 .quest-card .jp-title {
-  font-size: 12px;
+  font-size: calc(12px * var(--ui-font-scale, 1));
   color: var(--text-faint);
   line-height: 1.6;
 }
@@ -580,7 +585,7 @@ h1 {
   align-items: center;
   gap: 8px;
   color: var(--text-faint);
-  font-size: 10px;
+  font-size: calc(10px * var(--ui-font-scale, 1));
   margin-top: 23px;
   padding-top: 13px;
   border-top: 1px solid var(--line-soft);
@@ -602,13 +607,13 @@ h1 {
 }
 .empty-state h3 {
   margin: 0 0 10px;
-  font-size: 18px;
+  font-size: calc(18px * var(--ui-font-scale, 1));
   font-weight: 500;
 }
 .empty-state p {
   margin: 0 auto 20px;
   max-width: 460px;
-  font-size: 13px;
+  font-size: calc(13px * var(--ui-font-scale, 1));
   color: var(--text-faint);
   line-height: 1.9;
 }
@@ -618,7 +623,7 @@ h1 {
   display: flex;
   gap: 8px;
   align-items: center;
-  font-size: 11px;
+  font-size: calc(11px * var(--ui-font-scale, 1));
 }
 .notice {
   margin-bottom: 16px;
@@ -652,7 +657,7 @@ h1 {
   justify-content: space-between;
   gap: 10px;
   color: var(--muted);
-  font-size: 11px;
+  font-size: calc(11px * var(--ui-font-scale, 1));
 }
 .reader-side {
   position: sticky;
@@ -665,7 +670,7 @@ h1 {
   background: var(--surface-tint);
   border-radius: 12px;
   color: var(--muted);
-  font-size: 12px;
+  font-size: calc(12px * var(--ui-font-scale, 1));
   line-height: 1.9;
 }
 .reader-hint strong {
@@ -682,7 +687,7 @@ h1 {
   gap: 12px;
   align-items: center;
   justify-content: space-between;
-  font-size: 12px;
+  font-size: calc(12px * var(--ui-font-scale, 1));
   color: var(--muted);
 }
 .choice-actions {
@@ -701,10 +706,10 @@ h1 {
 }
 .note-card h3 {
   margin: 14px 0 5px;
-  font-size: 22px;
+  font-size: calc(22px * var(--ui-font-scale, 1));
 }
 .note-context {
-  font-size: 14px;
+  font-size: calc(14px * var(--ui-font-scale, 1));
   line-height: 1.9;
   color: var(--muted);
   margin: 14px 0;
@@ -727,12 +732,12 @@ h1 {
     padding-right: 12px;
   }
   .brand {
-    font-size: 15px;
+    font-size: calc(15px * var(--ui-font-scale, 1));
     gap: 4px;
     margin-left: 0;
   }
   .brand small {
-    font-size: 7px;
+    font-size: calc(7px * var(--ui-font-scale, 1));
   }
   .main-shell {
     margin-left: 195px;
@@ -766,7 +771,7 @@ h1 {
     padding: 25px;
   }
   .hero .hero-title {
-    font-size: 25px;
+    font-size: calc(25px * var(--ui-font-scale, 1));
   }
   .hero-orbit {
     opacity: 0.45;
@@ -816,14 +821,14 @@ h1 {
     max-width: 85%;
   }
   .hero .hero-title {
-    font-size: 23px;
+    font-size: calc(23px * var(--ui-font-scale, 1));
   }
   .page-heading {
     align-items: start;
     flex-direction: column;
   }
   h1 {
-    font-size: 24px;
+    font-size: calc(24px * var(--ui-font-scale, 1));
   }
   .filter-chip {
     padding: 7px 10px;

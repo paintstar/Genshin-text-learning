@@ -1,4 +1,4 @@
-/** 界面偏好 store：主题/字号/行距/页宽的唯一状态源，经 gateway 设置通道持久化。 */
+/** 界面偏好 store：主题/全局字号/阅读字号/行距/页宽的唯一状态源，经 gateway 设置通道持久化。 */
 
 import { defineStore } from 'pinia'
 import { watch, type WatchStopHandle } from 'vue'
@@ -36,6 +36,7 @@ const isPageWidth = oneOf(PAGE_WIDTH_VALUES)
 /** state 字段 → 设置键的单点映射。 */
 const PREFERENCE_KEYS = {
   theme: 'ui.theme',
+  uiFontSize: 'ui.font_size',
   fontSize: 'reader.font_size',
   lineHeight: 'reader.line_height',
   pageWidth: 'reader.page_width',
@@ -60,6 +61,7 @@ const persistWatchStops = new WeakMap<object, WatchStopHandle>()
 export const usePreferencesStore = defineStore('preferences', {
   state: () => ({
     theme: 'system' as ThemePreference,
+    uiFontSize: 'standard' as FontSizePreference,
     fontSize: 'standard' as FontSizePreference,
     lineHeight: 'standard' as LineHeightPreference,
     pageWidth: 'standard' as PageWidthPreference,
@@ -76,13 +78,15 @@ export const usePreferencesStore = defineStore('preferences', {
     async load(): Promise<void> {
       try {
         const gw = getGateway()
-        const [theme, fontSize, lineHeight, pageWidth] = await Promise.all([
+        const [theme, uiFontSize, fontSize, lineHeight, pageWidth] = await Promise.all([
           gw.settingsGet(PREFERENCE_KEYS.theme),
+          gw.settingsGet(PREFERENCE_KEYS.uiFontSize),
           gw.settingsGet(PREFERENCE_KEYS.fontSize),
           gw.settingsGet(PREFERENCE_KEYS.lineHeight),
           gw.settingsGet(PREFERENCE_KEYS.pageWidth),
         ])
         if (isTheme(theme)) this.theme = theme
+        if (isFontSize(uiFontSize)) this.uiFontSize = uiFontSize
         if (isFontSize(fontSize)) this.fontSize = fontSize
         if (isLineHeight(lineHeight)) this.lineHeight = lineHeight
         if (isPageWidth(pageWidth)) this.pageWidth = pageWidth
@@ -94,13 +98,14 @@ export const usePreferencesStore = defineStore('preferences', {
     startPersist(): void {
       if (persistWatchStops.has(this)) return
       const stop = watch(
-        () => [this.theme, this.fontSize, this.lineHeight, this.pageWidth],
+        () => [this.theme, this.uiFontSize, this.fontSize, this.lineHeight, this.pageWidth],
         async () => {
           if (!this.loaded) return
           try {
             const gw = getGateway()
             await Promise.all([
               gw.settingsSet(PREFERENCE_KEYS.theme, this.theme),
+              gw.settingsSet(PREFERENCE_KEYS.uiFontSize, this.uiFontSize),
               gw.settingsSet(PREFERENCE_KEYS.fontSize, this.fontSize),
               gw.settingsSet(PREFERENCE_KEYS.lineHeight, this.lineHeight),
               gw.settingsSet(PREFERENCE_KEYS.pageWidth, this.pageWidth),

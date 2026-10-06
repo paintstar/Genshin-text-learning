@@ -1,4 +1,6 @@
-/** naive-ui 主题纯映射：各主题 overrides 常量与主题选择函数，供 App.vue 与测试消费。 */
+/** naive-ui 主题纯映射：各主题 overrides 常量与主题选择函数，供 App.vue 与测试消费。
+ *  字号族（common 七键与 Card/Message/Drawer/Form 组件字号）为全局界面字号因子，
+ *  以内嵌 var(--ui-font-scale, 1) 的 calc 字符串烘入，五套常量逐字一致。 */
 
 import { darkTheme, type GlobalThemeOverrides } from 'naive-ui'
 import type { ConcreteTheme } from '@/stores/preferences'
@@ -20,9 +22,25 @@ export const lightOverrides: GlobalThemeOverrides = {
     borderColor: '#e2e7de',
     fontFamily:
       '-apple-system, BlinkMacSystemFont, "PingFang SC", "Noto Sans CJK SC", sans-serif',
+    fontSize: 'calc(14px * var(--ui-font-scale, 1))',
+    fontSizeMini: 'calc(12px * var(--ui-font-scale, 1))',
+    fontSizeTiny: 'calc(12px * var(--ui-font-scale, 1))',
+    fontSizeSmall: 'calc(14px * var(--ui-font-scale, 1))',
+    fontSizeMedium: 'calc(14px * var(--ui-font-scale, 1))',
+    fontSizeLarge: 'calc(15px * var(--ui-font-scale, 1))',
+    fontSizeHuge: 'calc(16px * var(--ui-font-scale, 1))',
   },
   Button: { fontWeight: '500' },
-  Card: { borderRadius: '16px', titleFontSizeSmall: '16px' },
+  Card: {
+    borderRadius: '16px',
+    titleFontSizeSmall: 'calc(16px * var(--ui-font-scale, 1))',
+  },
+  Message: { fontSize: 'calc(14px * var(--ui-font-scale, 1))' },
+  Drawer: { titleFontSize: 'calc(18px * var(--ui-font-scale, 1))' },
+  Form: {
+    labelFontSizeTopMedium: 'calc(14px * var(--ui-font-scale, 1))',
+    feedbackFontSizeMedium: 'calc(14px * var(--ui-font-scale, 1))',
+  },
 }
 
 /** 深色 overrides：浅色敏感条目换深色值，主题无关条目共用同值。 */
@@ -40,9 +58,25 @@ export const darkOverrides: GlobalThemeOverrides = {
     borderColor: '#2d3831',
     fontFamily:
       '-apple-system, BlinkMacSystemFont, "PingFang SC", "Noto Sans CJK SC", sans-serif',
+    fontSize: 'calc(14px * var(--ui-font-scale, 1))',
+    fontSizeMini: 'calc(12px * var(--ui-font-scale, 1))',
+    fontSizeTiny: 'calc(12px * var(--ui-font-scale, 1))',
+    fontSizeSmall: 'calc(14px * var(--ui-font-scale, 1))',
+    fontSizeMedium: 'calc(14px * var(--ui-font-scale, 1))',
+    fontSizeLarge: 'calc(15px * var(--ui-font-scale, 1))',
+    fontSizeHuge: 'calc(16px * var(--ui-font-scale, 1))',
   },
   Button: { fontWeight: '500' },
-  Card: { borderRadius: '16px', titleFontSizeSmall: '16px' },
+  Card: {
+    borderRadius: '16px',
+    titleFontSizeSmall: 'calc(16px * var(--ui-font-scale, 1))',
+  },
+  Message: { fontSize: 'calc(14px * var(--ui-font-scale, 1))' },
+  Drawer: { titleFontSize: 'calc(18px * var(--ui-font-scale, 1))' },
+  Form: {
+    labelFontSizeTopMedium: 'calc(14px * var(--ui-font-scale, 1))',
+    feedbackFontSizeMedium: 'calc(14px * var(--ui-font-scale, 1))',
+  },
 }
 
 /** 青绿 overrides：关键色与 styles.css html.theme-green 变量组同源。 */
@@ -60,9 +94,25 @@ export const greenOverrides: GlobalThemeOverrides = {
     borderColor: '#d9e4d1',
     fontFamily:
       '-apple-system, BlinkMacSystemFont, "PingFang SC", "Noto Sans CJK SC", sans-serif',
+    fontSize: 'calc(14px * var(--ui-font-scale, 1))',
+    fontSizeMini: 'calc(12px * var(--ui-font-scale, 1))',
+    fontSizeTiny: 'calc(12px * var(--ui-font-scale, 1))',
+    fontSizeSmall: 'calc(14px * var(--ui-font-scale, 1))',
+    fontSizeMedium: 'calc(14px * var(--ui-font-scale, 1))',
+    fontSizeLarge: 'calc(15px * var(--ui-font-scale, 1))',
+    fontSizeHuge: 'calc(16px * var(--ui-font-scale, 1))',
   },
   Button: { fontWeight: '500' },
-  Card: { borderRadius: '16px', titleFontSizeSmall: '16px' },
+  Card: {
+    borderRadius: '16px',
+    titleFontSizeSmall: 'calc(16px * var(--ui-font-scale, 1))',
+  },
+  Message: { fontSize: 'calc(14px * var(--ui-font-scale, 1))' },
+  Drawer: { titleFontSize: 'calc(18px * var(--ui-font-scale, 1))' },
+  Form: {
+    labelFontSizeTopMedium: 'calc(14px * var(--ui-font-scale, 1))',
+    feedbackFontSizeMedium: 'calc(14px * var(--ui-font-scale, 1))',
+  },
 }
 
 /** 绯樱 overrides：关键色与 styles.css html.theme-sakura 变量组同源。 */
@@ -80,9 +130,25 @@ export const sakuraOverrides: GlobalThemeOverrides = {
     borderColor: '#eadbdf',
     fontFamily:
       '-apple-system, BlinkMacSystemFont, "PingFang SC", "Noto Sans CJK SC", sans-serif',
+    fontSize: 'calc(14px * var(--ui-font-scale, 1))',
+    fontSizeMini: 'calc(12px * var(--ui-font-scale, 1))',
+    fontSizeTiny: 'calc(12px * var(--ui-font-scale, 1))',
+    fontSizeSmall: 'calc(14px * var(--ui-font-scale, 1))',
+    fontSizeMedium: 'calc(14px * var(--ui-font-scale, 1))',
+    fontSizeLarge: 'calc(15px * var(--ui-font-scale, 1))',
+    fontSizeHuge: 'calc(16px * var(--ui-font-scale, 1))',
   },
   Button: { fontWeight: '500' },
-  Card: { borderRadius: '16px', titleFontSizeSmall: '16px' },
+  Card: {
+    borderRadius: '16px',
+    titleFontSizeSmall: 'calc(16px * var(--ui-font-scale, 1))',
+  },
+  Message: { fontSize: 'calc(14px * var(--ui-font-scale, 1))' },
+  Drawer: { titleFontSize: 'calc(18px * var(--ui-font-scale, 1))' },
+  Form: {
+    labelFontSizeTopMedium: 'calc(14px * var(--ui-font-scale, 1))',
+    feedbackFontSizeMedium: 'calc(14px * var(--ui-font-scale, 1))',
+  },
 }
 
 /** 水色 overrides：关键色与 styles.css html.theme-aqua 变量组同源。 */
@@ -100,9 +166,25 @@ export const aquaOverrides: GlobalThemeOverrides = {
     borderColor: '#dbe5ea',
     fontFamily:
       '-apple-system, BlinkMacSystemFont, "PingFang SC", "Noto Sans CJK SC", sans-serif',
+    fontSize: 'calc(14px * var(--ui-font-scale, 1))',
+    fontSizeMini: 'calc(12px * var(--ui-font-scale, 1))',
+    fontSizeTiny: 'calc(12px * var(--ui-font-scale, 1))',
+    fontSizeSmall: 'calc(14px * var(--ui-font-scale, 1))',
+    fontSizeMedium: 'calc(14px * var(--ui-font-scale, 1))',
+    fontSizeLarge: 'calc(15px * var(--ui-font-scale, 1))',
+    fontSizeHuge: 'calc(16px * var(--ui-font-scale, 1))',
   },
   Button: { fontWeight: '500' },
-  Card: { borderRadius: '16px', titleFontSizeSmall: '16px' },
+  Card: {
+    borderRadius: '16px',
+    titleFontSizeSmall: 'calc(16px * var(--ui-font-scale, 1))',
+  },
+  Message: { fontSize: 'calc(14px * var(--ui-font-scale, 1))' },
+  Drawer: { titleFontSize: 'calc(18px * var(--ui-font-scale, 1))' },
+  Form: {
+    labelFontSizeTopMedium: 'calc(14px * var(--ui-font-scale, 1))',
+    feedbackFontSizeMedium: 'calc(14px * var(--ui-font-scale, 1))',
+  },
 }
 
 /** 主题 → overrides 查表：各主题指向各自 overrides 常量。 */

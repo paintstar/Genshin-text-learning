@@ -102,9 +102,15 @@ describe('readerLayout', () => {
       new URL('../../components/AlignedRowView.vue', import.meta.url),
       'utf8',
     )
-    expect(row).toContain('font-size: calc(18px * var(--reader-font-scale, 1))')
-    expect(row).toContain('font-size: calc(13px * var(--reader-font-scale, 1))')
-    expect(row).toContain('font-size: calc(10px * var(--reader-font-scale, 1))')
+    expect(row).toContain(
+      'font-size: calc(18px * var(--ui-font-scale, 1) * var(--reader-font-scale, 1))',
+    )
+    expect(row).toContain(
+      'font-size: calc(13px * var(--ui-font-scale, 1) * var(--reader-font-scale, 1))',
+    )
+    expect(row).toContain(
+      'font-size: calc(10px * var(--ui-font-scale, 1) * var(--reader-font-scale, 1))',
+    )
     expect(row).toContain('line-height: var(--reader-jp-line-height, 2.35)')
     expect(row).toContain('line-height: var(--reader-chs-line-height, 1.9)')
     // 缩放范围负向锁（行为契约：恰 5 条规则消费——3 处字号 + 2 处行距；

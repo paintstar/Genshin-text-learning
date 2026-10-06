@@ -125,7 +125,7 @@ async function save(id: number) {
                     ? '句子'
                     : '笔记'
               }}</n-tag
-            ><span style="font-size: 10px; color: var(--text-faint)">{{
+            ><span style="font-size: calc(10px * var(--ui-font-scale, 1)); color: var(--text-faint)">{{
               note.questTitle || '剧情收藏'
             }}</span>
           </div>
@@ -204,7 +204,7 @@ async function save(id: number) {
   background: var(--surface-subtle);
   border-radius: 8px;
   white-space: pre-wrap;
-  font-size: 13px;
+  font-size: calc(13px * var(--ui-font-scale, 1));
   color: var(--muted);
   line-height: 1.8;
 }

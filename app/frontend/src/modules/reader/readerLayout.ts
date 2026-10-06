@@ -3,7 +3,8 @@
  *
  * CSS 消费契约（与 readerLayout.test.ts 同源锁定，改名/删消费点即测试失败）：
  * - --reader-font-scale：AlignedRowView.vue 的 .jp-text/.chs/.jp-text rt 三处
- *   calc(基准px * var(--reader-font-scale, 1))；
+ *   calc(基准px * var(--ui-font-scale, 1) * var(--reader-font-scale, 1))
+ *   （全局界面字号 × 阅读字号双因子乘算）；
  * - --reader-jp-line-height / --reader-chs-line-height：同文件 .jp / .chs 的
  *   line-height: var(--…, 标准档值)（无单位值，沿继承在子元素按各自字号重算）；
  * - --reader-page-max-width：styles.css 的 .reading-paper max-width（wide=none 即现状）。

@@ -163,16 +163,16 @@ function clickUnit(start: number, end: number) {
 }
 .role {
   color: var(--text-soft);
-  font-size: 12px;
+  font-size: calc(12px * var(--ui-font-scale, 1));
   font-weight: 550;
 }
 .role-ja {
   color: var(--text-faint);
-  font-size: 10px;
+  font-size: calc(10px * var(--ui-font-scale, 1));
 }
 .choice-label {
   color: var(--text-faint);
-  font-size: 10px;
+  font-size: calc(10px * var(--ui-font-scale, 1));
   margin-left: auto;
 }
 .jp {
@@ -181,11 +181,11 @@ function clickUnit(start: number, end: number) {
   overflow-wrap: anywhere;
 }
 .jp-text {
-  font-size: calc(18px * var(--reader-font-scale, 1));
+  font-size: calc(18px * var(--ui-font-scale, 1) * var(--reader-font-scale, 1));
   cursor: text;
 }
 .jp-text rt {
-  font-size: calc(10px * var(--reader-font-scale, 1));
+  font-size: calc(10px * var(--ui-font-scale, 1) * var(--reader-font-scale, 1));
   user-select: none;
   -webkit-user-select: none;
   color: var(--text-faint);
@@ -199,13 +199,13 @@ function clickUnit(start: number, end: number) {
 }
 .chs {
   color: var(--muted);
-  font-size: calc(13px * var(--reader-font-scale, 1));
+  font-size: calc(13px * var(--ui-font-scale, 1) * var(--reader-font-scale, 1));
   line-height: var(--reader-chs-line-height, 1.9);
   margin-top: 7px;
 }
 .missing {
   color: var(--text-faint);
-  font-size: 12px;
+  font-size: calc(12px * var(--ui-font-scale, 1));
 }
 .choice {
   background: var(--paper-dim);
