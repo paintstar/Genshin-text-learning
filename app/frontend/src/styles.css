@@ -545,6 +545,7 @@ h1 {
   border: 1px solid var(--line);
   border-radius: 16px;
   overflow: hidden;
+  width: 100%;
   max-width: var(--reader-page-max-width, none);
   margin-inline: auto;
 }

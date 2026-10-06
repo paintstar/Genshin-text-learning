@@ -4,7 +4,9 @@
  * 组装函数（查表直取、standard 恒等、键集恰为 4 个变量名），以及与
  * AlignedRowView.vue / styles.css / QuestView.vue 三处 CSS 消费点的同源锁定
  * （模块在、CSS 没接线时测试失败；回退值与标准档表值交叉核对防两处漂移；
- * 消费处恰量计数锁缩放范围——辅助小字与工具条不得消费排版变量）。
+ * 消费处恰量计数锁缩放范围——辅助小字与工具条不得消费排版变量），以及
+ * .reading-paper 纸宽三件套规则级锁定（width:100% 显式 stretch：grid item
+ * 带 auto margins 时不 stretch、宽度塌缩为 fit-content，缺省即 v5 检查缺陷 D1）。
  * 源文件用 node fs 原文读取（vite `?raw` 在 vitest 中会被 stub 成空串）；
  * 项目 tsconfig types 未含 node（无 @types/node），导入处以 @ts-expect-error
  * 压制模块声明缺失，运行时由 node 环境解析真实 node:fs。
@@ -138,5 +140,31 @@ describe('readerLayout', () => {
     expect(quest).toContain('readerLayoutStyle')
     // 接线锁到绑定语句本身：仅有导入/调用而未绑定 .reading-paper 时失败。
     expect(quest).toContain('<section class="reading-paper" :style="layoutStyle">')
+  })
+
+  it('纸宽三件套规则级锁定（v5 缺陷 D1 回归）：.reading-paper 显式占满轨宽、再由页宽档收窄、auto 居中', () => {
+    const css = readFileSync(new URL('../../styles.css', import.meta.url), 'utf8')
+    // 规则级截取而非全文件 toContain：styles.css 另有两处无关的 width: 100%
+    // （.ai-entry 与 .search-field input），全文件存在性锁在 .reading-paper
+    // 内的声明被删时仍会通过——D1 复发检测必须锁到规则块内部。
+    const start = css.indexOf('.reading-paper {')
+    expect(start).toBeGreaterThanOrEqual(0)
+    const open = css.indexOf('{', start)
+    const close = css.indexOf('}', open)
+    expect(open).toBeGreaterThan(start)
+    expect(close).toBeGreaterThan(open)
+    const body = css.slice(open + 1, close)
+    // 行为契约（detail_v4 契约 5「只收不放」+ 居中）：.reading-paper 是
+    // .reader-layout grid 的 item；现行引擎下 grid item 带 auto margins 时
+    // 不 stretch、宽度按 fit-content 解析——缺 width: 100% 时纸宽塌缩为
+    // 内容宽、页宽三档全部失效（v5 检查项 3 缺陷 D1，WebKit/Chromium 一致）。
+    // 三件套语义：显式占满轨宽 → max-width 按档位收窄 → margin-inline 居中。
+    expect(body).toContain('width: 100%')
+    expect(body).toContain('max-width: var(--reader-page-max-width, none)')
+    expect(body).toContain('margin-inline: auto')
+    // 回退值与页宽表 wide 档交叉核对（规则级：同规则内回退 = 占满列宽的现状语义）。
+    expect(
+      body.match(/var\(--reader-page-max-width, ([\w]+)\)/)?.[1],
+    ).toBe(PAGE_MAX_WIDTHS.wide)
   })
 })
