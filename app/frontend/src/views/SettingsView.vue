@@ -5,6 +5,7 @@ import { useSettingsStore } from '@/stores/settings'
 import { useAiStore } from '@/stores/ai'
 import { getGateway } from '@/gateway/provider'
 import type { AiProfileDto, AiProfileInput } from '@/gateway/bindings'
+import AppearanceSettings from './AppearanceSettings.vue'
 const settings = useSettingsStore()
 const ai = useAiStore()
 const message = useMessage()
@@ -134,6 +135,7 @@ async function restore() {
       <button
         v-for="tab in [
           { value: 'data', label: '剧情与词典' },
+          { value: 'appearance', label: '界面与阅读' },
           { value: 'ai', label: '语言助手' },
           { value: 'backup', label: '备份与恢复' },
           { value: 'about', label: '关于' },
@@ -270,6 +272,9 @@ async function restore() {
           词典与假名注音在本地运行。释义优先显示中文，部分词语仅提供英文；游戏中的人名与专有名词可能没有收录。
         </p></n-card
       >
+    </div>
+    <div v-if="section === 'appearance'" class="settings-stack">
+      <AppearanceSettings />
     </div>
     <div v-if="section === 'ai'" class="settings-stack">
       <n-card title="语言助手 · 可选" size="small"

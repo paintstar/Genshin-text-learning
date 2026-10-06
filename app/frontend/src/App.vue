@@ -4,6 +4,7 @@ import { useRoute } from 'vue-router'
 import { zhCN, dateZhCN, type GlobalThemeOverrides } from 'naive-ui'
 import { useAiStore } from '@/stores/ai'
 import { useSettingsStore } from '@/stores/settings'
+import { usePreferencesStore } from '@/stores/preferences'
 import AiPanel from './components/AiPanel.vue'
 import AppIcon from './components/AppIcon.vue'
 import { useReaderStore } from '@/stores/reader'
@@ -13,6 +14,7 @@ const route = useRoute()
 const ai = useAiStore()
 const settings = useSettingsStore()
 const reader = useReaderStore()
+const preferences = usePreferencesStore()
 const preferencesReady = ref(false)
 const showAi = ref(false)
 const nav = [
@@ -57,6 +59,8 @@ const theme: GlobalThemeOverrides = {
 }
 onMounted(async () => {
   await settings.refreshInit()
+  preferences.startPersist()
+  await preferences.load()
   try {
     const gw = getGateway()
     const [furigana, mode, language, traveler] = await Promise.all([
