@@ -5,6 +5,8 @@ import { useMessage } from 'naive-ui'
 import { useReaderStore } from '@/stores/reader'
 import { useNotesStore } from '@/stores/notes'
 import { useAiStore } from '@/stores/ai'
+import { usePreferencesStore } from '@/stores/preferences'
+import { readerLayoutStyle } from '@/modules/reader/readerLayout'
 import AlignedRowView from '@/components/AlignedRowView.vue'
 import SelectionPopup from '@/components/SelectionPopup.vue'
 import AppIcon from '@/components/AppIcon.vue'
@@ -22,6 +24,14 @@ const message = useMessage()
 const reader = useReaderStore()
 const notes = useNotesStore()
 const ai = useAiStore()
+const preferences = usePreferencesStore()
+const layoutStyle = computed(() =>
+  readerLayoutStyle({
+    fontSize: preferences.fontSize,
+    lineHeight: preferences.lineHeight,
+    pageWidth: preferences.pageWidth,
+  }),
+)
 const questId = computed(() => Number(route.params.questId))
 const selection = ref<SelectionResult | null>(null)
 const selectionLoading = ref(false)
@@ -371,7 +381,7 @@ function windowLinesFor(row: AlignedRow) {
       >{{ reader.session.jumpPrompt }}</n-alert
     >
     <div v-if="reader.graph" class="reader-layout">
-      <section class="reading-paper">
+      <section class="reading-paper" :style="layoutStyle">
         <div class="paper-header">
           <span>{{ subTitle }}</span
           ><span

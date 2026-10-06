@@ -27,7 +27,7 @@ const reader = useReaderStore()
   >
   <n-card title="阅读排版" size="small"
     ><p class="setting-copy">
-      调整阅读界面的字号、行距与页面宽度。偏好会自动保存，重启后仍会记住；排版将在后续版本应用到阅读界面，假名注音开关则会立即作用于阅读中的章节。
+      调整阅读界面的字号、行距与页面宽度。偏好会自动保存，重启后仍会记住；字号、行距与页面宽度会立即生效于阅读界面，假名注音开关则会立即作用于阅读中的章节。
     </p>
     <div class="pref-row">
       <span class="pref-label">阅读字号</span>

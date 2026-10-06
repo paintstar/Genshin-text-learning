@@ -176,16 +176,16 @@ function clickUnit(start: number, end: number) {
   margin-left: auto;
 }
 .jp {
-  line-height: 2.35;
+  line-height: var(--reader-jp-line-height, 2.35);
   color: var(--ink-deep);
   overflow-wrap: anywhere;
 }
 .jp-text {
-  font-size: 18px;
+  font-size: calc(18px * var(--reader-font-scale, 1));
   cursor: text;
 }
 .jp-text rt {
-  font-size: 10px;
+  font-size: calc(10px * var(--reader-font-scale, 1));
   user-select: none;
   -webkit-user-select: none;
   color: var(--text-faint);
@@ -199,8 +199,8 @@ function clickUnit(start: number, end: number) {
 }
 .chs {
   color: var(--muted);
-  font-size: 13px;
-  line-height: 1.9;
+  font-size: calc(13px * var(--reader-font-scale, 1));
+  line-height: var(--reader-chs-line-height, 1.9);
   margin-top: 7px;
 }
 .missing {
