@@ -39,34 +39,130 @@
 html.dark {
   color-scheme: dark;
   /* 文本层级 */
-  --ink: #d8e2d4;
-  --ink-deep: #a9cbb4;
-  --text-soft: #a3b5a6;
-  --muted: #8a9c8b;
-  --text-faint: #6d7f72;
+  --ink: #dde5dd;
+  --ink-deep: #e9f1e6;
+  --text-soft: #b6c2b4;
+  --muted: #96a593;
+  --text-faint: #79897a;
   /* 强调 */
-  --green: #6fae90;
-  --green-strong: #7cc29a;
-  --focus-ring: #4f7a63;
-  --focus-glow: #22382c;
+  --green: #85c9a4;
+  --green-strong: #9fd9b8;
+  --focus-ring: #5f9d7a;
+  --focus-glow: #1c3427;
   /* 分隔线 */
-  --line: #2f3b33;
-  --line-soft: #27312a;
+  --line: #2d3831;
+  --line-soft: #26302a;
   /* 表面层级 */
-  --paper: #202822;
-  --paper-soft: #1b221d;
-  --paper-dim: #252e27;
-  --bg: #161c18;
-  --surface-hover: #2a352d;
-  --surface-active: #2e4034;
-  --surface-tint: #243129;
-  --surface-subtle: #29342c;
+  --paper: #1c2420;
+  --paper-soft: #171e1a;
+  --paper-dim: #212a25;
+  --bg: #111714;
+  --surface-hover: #27332c;
+  --surface-active: #2e4033;
+  --surface-tint: #1f2c25;
+  --surface-subtle: #242f28;
   /* 选中与装饰 */
-  --selection-bg: #3d5a46;
-  --selection-ink: #dcebdd;
-  --decor: #57705f;
-  --decor-soft: #435347;
-  --card-shadow: 0 5px 18px rgba(0, 0, 0, 0.4);
+  --selection-bg: #41684e;
+  --selection-ink: #e9f2e7;
+  --decor: #5d7a67;
+  --decor-soft: #455c4e;
+  --card-shadow: 0 5px 18px rgba(0, 0, 0, 0.5);
+}
+html.theme-green {
+  color-scheme: light;
+  /* 文本层级 */
+  --ink: #263829;
+  --ink-deep: #1f5238;
+  --text-soft: #4d6151;
+  --muted: #5e7461;
+  --text-faint: #7a9178;
+  /* 强调 */
+  --green: #1c7340;
+  --green-strong: #3f9e63;
+  --focus-ring: #8fbba0;
+  --focus-glow: #e9f2e6;
+  /* 分隔线 */
+  --line: #d9e4d1;
+  --line-soft: #e6eede;
+  /* 表面层级 */
+  --paper: #fcfdfa;
+  --paper-soft: #f5f8f1;
+  --paper-dim: #f2f6ed;
+  --bg: #eef4ea;
+  --surface-hover: #e6efdf;
+  --surface-active: #dbe9d0;
+  --surface-tint: #e3efdd;
+  --surface-subtle: #eef4e8;
+  /* 选中与装饰 */
+  --selection-bg: #cde8c0;
+  --selection-ink: #1e3d28;
+  --decor: #9db898;
+  --decor-soft: #c2d8bb;
+  --card-shadow: 0 5px 18px #2c523008;
+}
+html.theme-sakura {
+  color-scheme: light;
+  /* 文本层级 */
+  --ink: #38272e;
+  --ink-deep: #7a2f45;
+  --text-soft: #5c4a51;
+  --muted: #796870;
+  --text-faint: #95838b;
+  /* 强调 */
+  --green: #a83555;
+  --green-strong: #c95570;
+  --focus-ring: #d092a2;
+  --focus-glow: #f9edf0;
+  /* 分隔线 */
+  --line: #eadbdf;
+  --line-soft: #f1e6e9;
+  /* 表面层级 */
+  --paper: #fffdfd;
+  --paper-soft: #fbf4f5;
+  --paper-dim: #f9f1f3;
+  --bg: #f8eff1;
+  --surface-hover: #f4e6ea;
+  --surface-active: #f0dde3;
+  --surface-tint: #f6e9ec;
+  --surface-subtle: #f8eef0;
+  /* 选中与装饰 */
+  --selection-bg: #f2d7dd;
+  --selection-ink: #54212f;
+  --decor: #c99aa7;
+  --decor-soft: #e0bfc7;
+  --card-shadow: 0 5px 18px #5e233408;
+}
+html.theme-aqua {
+  color-scheme: light;
+  /* 文本层级 */
+  --ink: #27343b;
+  --ink-deep: #29586e;
+  --text-soft: #4b5f6a;
+  --muted: #59707e;
+  --text-faint: #788b94;
+  /* 强调 */
+  --green: #22688a;
+  --green-strong: #3f85a8;
+  --focus-ring: #8fb8ca;
+  --focus-glow: #e7f1f5;
+  /* 分隔线 */
+  --line: #dbe5ea;
+  --line-soft: #e7eff2;
+  /* 表面层级 */
+  --paper: #fcfdfe;
+  --paper-soft: #f4f8fa;
+  --paper-dim: #f1f6f8;
+  --bg: #eef4f6;
+  --surface-hover: #e4eef2;
+  --surface-active: #d9e8ee;
+  --surface-tint: #e6f0f4;
+  --surface-subtle: #edf4f6;
+  /* 选中与装饰 */
+  --selection-bg: #d3e6ee;
+  --selection-ink: #1d3f52;
+  --decor: #9dbdcb;
+  --decor-soft: #c2d7e1;
+  --card-shadow: 0 5px 18px #1c4a6108;
 }
 * {
   box-sizing: border-box;

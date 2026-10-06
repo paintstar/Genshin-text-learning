@@ -1,4 +1,4 @@
-/** naive-ui 主题纯映射：浅/深两套 overrides 常量与主题选择函数，供 App.vue 与测试消费。 */
+/** naive-ui 主题纯映射：各主题 overrides 常量与主题选择函数，供 App.vue 与测试消费。 */
 
 import { darkTheme, type GlobalThemeOverrides } from 'naive-ui'
 import type { ConcreteTheme } from '@/stores/preferences'
@@ -28,16 +28,16 @@ export const lightOverrides: GlobalThemeOverrides = {
 /** 深色 overrides：浅色敏感条目换深色值，主题无关条目共用同值。 */
 export const darkOverrides: GlobalThemeOverrides = {
   common: {
-    primaryColor: '#4f8a70',
-    primaryColorHover: '#5c9c7f',
-    primaryColorPressed: '#417463',
-    primaryColorSuppl: '#4f8a70',
+    primaryColor: '#85c9a4',
+    primaryColorHover: '#93d3b0',
+    primaryColorPressed: '#77b894',
+    primaryColorSuppl: '#85c9a4',
     borderRadius: '10px',
-    textColorBase: '#d8e2d4',
-    textColor2: '#a3b5a6',
-    bodyColor: '#161c18',
-    cardColor: '#202822',
-    borderColor: '#2f3b33',
+    textColorBase: '#dde5dd',
+    textColor2: '#b6c2b4',
+    bodyColor: '#111714',
+    cardColor: '#1c2420',
+    borderColor: '#2d3831',
     fontFamily:
       '-apple-system, BlinkMacSystemFont, "PingFang SC", "Noto Sans CJK SC", sans-serif',
   },
@@ -45,16 +45,76 @@ export const darkOverrides: GlobalThemeOverrides = {
   Card: { borderRadius: '16px', titleFontSizeSmall: '16px' },
 }
 
-/** 主题 → overrides 查表：新主题初值复用浅色基底引用（中间态：浅色复制品）。 */
+/** 青绿 overrides：关键色与 styles.css html.theme-green 变量组同源。 */
+export const greenOverrides: GlobalThemeOverrides = {
+  common: {
+    primaryColor: '#1c7340',
+    primaryColorHover: '#2a8350',
+    primaryColorPressed: '#156335',
+    primaryColorSuppl: '#1c7340',
+    borderRadius: '10px',
+    textColorBase: '#263829',
+    textColor2: '#4d6151',
+    bodyColor: '#eef4ea',
+    cardColor: '#fcfdfa',
+    borderColor: '#d9e4d1',
+    fontFamily:
+      '-apple-system, BlinkMacSystemFont, "PingFang SC", "Noto Sans CJK SC", sans-serif',
+  },
+  Button: { fontWeight: '500' },
+  Card: { borderRadius: '16px', titleFontSizeSmall: '16px' },
+}
+
+/** 绯樱 overrides：关键色与 styles.css html.theme-sakura 变量组同源。 */
+export const sakuraOverrides: GlobalThemeOverrides = {
+  common: {
+    primaryColor: '#a83555',
+    primaryColorHover: '#b84666',
+    primaryColorPressed: '#922c49',
+    primaryColorSuppl: '#a83555',
+    borderRadius: '10px',
+    textColorBase: '#38272e',
+    textColor2: '#5c4a51',
+    bodyColor: '#f8eff1',
+    cardColor: '#fffdfd',
+    borderColor: '#eadbdf',
+    fontFamily:
+      '-apple-system, BlinkMacSystemFont, "PingFang SC", "Noto Sans CJK SC", sans-serif',
+  },
+  Button: { fontWeight: '500' },
+  Card: { borderRadius: '16px', titleFontSizeSmall: '16px' },
+}
+
+/** 水色 overrides：关键色与 styles.css html.theme-aqua 变量组同源。 */
+export const aquaOverrides: GlobalThemeOverrides = {
+  common: {
+    primaryColor: '#22688a',
+    primaryColorHover: '#2f7a9d',
+    primaryColorPressed: '#1b5977',
+    primaryColorSuppl: '#22688a',
+    borderRadius: '10px',
+    textColorBase: '#27343b',
+    textColor2: '#4b5f6a',
+    bodyColor: '#eef4f6',
+    cardColor: '#fcfdfe',
+    borderColor: '#dbe5ea',
+    fontFamily:
+      '-apple-system, BlinkMacSystemFont, "PingFang SC", "Noto Sans CJK SC", sans-serif',
+  },
+  Button: { fontWeight: '500' },
+  Card: { borderRadius: '16px', titleFontSizeSmall: '16px' },
+}
+
+/** 主题 → overrides 查表：各主题指向各自 overrides 常量。 */
 const overridesByTheme: Record<ConcreteTheme, GlobalThemeOverrides> = {
   light: lightOverrides,
   dark: darkOverrides,
-  green: lightOverrides,
-  sakura: lightOverrides,
-  aqua: lightOverrides,
+  green: greenOverrides,
+  sakura: sakuraOverrides,
+  aqua: aquaOverrides,
 }
 
-/** 主题 → naive 内置主题基底：深色系归类单点维护，后续配色任务走深色系只改此表。 */
+/** 主题 → naive 内置主题基底：深色系归类单点维护（dark 深色系，其余浅色系）。 */
 const naiveBasesByTheme: Record<ConcreteTheme, typeof darkTheme | null> = {
   light: null,
   dark: darkTheme,
