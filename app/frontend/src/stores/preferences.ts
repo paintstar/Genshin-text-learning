@@ -4,12 +4,22 @@ import { defineStore } from 'pinia'
 import { watch, type WatchStopHandle } from 'vue'
 import { getGateway } from '@/gateway/provider'
 
-export type ThemePreference = 'system' | 'light' | 'dark'
+export type ThemePreference = 'system' | 'light' | 'dark' | 'green' | 'sakura' | 'aqua'
 export type FontSizePreference = 'small' | 'standard' | 'large' | 'xlarge'
 export type LineHeightPreference = 'compact' | 'standard' | 'loose'
 export type PageWidthPreference = 'narrow' | 'standard' | 'wide'
 
-export const THEME_VALUES: readonly ThemePreference[] = ['system', 'light', 'dark']
+/** 具体主题 id：排除 system 后的主题联合；resolvedTheme 与主题模块查表的公共键类型。 */
+export type ConcreteTheme = Exclude<ThemePreference, 'system'>
+
+export const THEME_VALUES: readonly ThemePreference[] = [
+  'system',
+  'light',
+  'dark',
+  'green',
+  'sakura',
+  'aqua',
+]
 export const FONT_SIZE_VALUES: readonly FontSizePreference[] = ['small', 'standard', 'large', 'xlarge']
 export const LINE_HEIGHT_VALUES: readonly LineHeightPreference[] = ['compact', 'standard', 'loose']
 export const PAGE_WIDTH_VALUES: readonly PageWidthPreference[] = ['narrow', 'standard', 'wide']
@@ -57,7 +67,7 @@ export const usePreferencesStore = defineStore('preferences', {
     loaded: false,
   }),
   getters: {
-    resolvedTheme(state): 'light' | 'dark' {
+    resolvedTheme(state): ConcreteTheme {
       if (state.theme !== 'system') return state.theme
       return systemPrefersDark() ? 'dark' : 'light'
     },

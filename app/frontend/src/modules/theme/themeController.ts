@@ -10,10 +10,28 @@
  */
 
 import { ref, watch, type Ref } from 'vue'
-import { setSystemPrefersDarkResolver, usePreferencesStore } from '@/stores/preferences'
+import {
+  setSystemPrefersDarkResolver,
+  THEME_VALUES,
+  usePreferencesStore,
+  type ConcreteTheme,
+} from '@/stores/preferences'
 
-/** 深色 class 名，与 styles.css 的 `html.dark` 选择器对应。 */
+/** 深色 class 名，与 styles.css 的 `html.dark` 选择器对应（历史沿用，不加前缀）。 */
 export const DARK_THEME_CLASS = 'dark'
+
+/** light 主题不落 class；dark 沿用裸 'dark'（styles.css `html.dark` 选择器锁定）；其余主题落 `theme-{id}`。 */
+export function themeClassFor(theme: ConcreteTheme): string | null {
+  if (theme === 'light') return null
+  return theme === 'dark' ? DARK_THEME_CLASS : `theme-${theme}`
+}
+
+/** 全部主题 class 全集（由 THEME_VALUES 单点派生）：apply 每次整体清理，防跨主题切换残留。 */
+export const THEME_CLASSES: readonly string[] = THEME_VALUES.filter(
+  (value): value is ConcreteTheme => value !== 'system',
+)
+  .map((theme) => themeClassFor(theme))
+  .filter((cls): cls is string => cls !== null)
 
 export type PreferencesStore = ReturnType<typeof usePreferencesStore>
 
@@ -69,10 +87,11 @@ export function initThemeController(
   const mql = resolveMatchMedia('(prefers-color-scheme: dark)')
   mql?.addEventListener('change', onChange)
 
-  const apply = (resolved: 'light' | 'dark') => {
+  const apply = (resolved: ConcreteTheme) => {
     if (!doc) return
-    if (resolved === 'dark') doc.documentElement.classList.add(DARK_THEME_CLASS)
-    else doc.documentElement.classList.remove(DARK_THEME_CLASS)
+    doc.documentElement.classList.remove(...THEME_CLASSES)
+    const cls = themeClassFor(resolved)
+    if (cls) doc.documentElement.classList.add(cls)
   }
   const stopWatch = watch(() => preferences.resolvedTheme, apply, { immediate: true })
 

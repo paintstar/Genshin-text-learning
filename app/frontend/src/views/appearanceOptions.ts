@@ -20,6 +20,9 @@ export const THEME_LABELS: Record<ThemePreference, string> = {
   system: '跟随系统',
   light: '浅色',
   dark: '深色',
+  green: '青绿',
+  sakura: '绯樱',
+  aqua: '水色',
 }
 
 export const FONT_SIZE_LABELS: Record<FontSizePreference, string> = {

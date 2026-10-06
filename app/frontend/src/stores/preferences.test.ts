@@ -70,6 +70,25 @@ it('库内非法值回退默认', async () => {
   expect(preferences.loaded).toBe(true)
 })
 
+it('库内单键非法主题值回退默认，其余键照常赋值', async () => {
+  const gateway = new MockGateway()
+  const values: Record<string, string> = {
+    'ui.theme': 'midnight',
+    'reader.font_size': 'large',
+    'reader.line_height': 'loose',
+    'reader.page_width': 'wide',
+  }
+  gateway.settingsGet = vi.fn(async (key: string) => values[key] ?? null)
+  setGateway(gateway)
+  const preferences = usePreferencesStore()
+  await preferences.load()
+  expect(preferences.theme).toBe('system')
+  expect(preferences.fontSize).toBe('large')
+  expect(preferences.lineHeight).toBe('loose')
+  expect(preferences.pageWidth).toBe('wide')
+  expect(preferences.loaded).toBe(true)
+})
+
 it('单键读取异常整体容错：不 reject、全部保持默认、仍标记 loaded', async () => {
   const gateway = new MockGateway()
   gateway.settingsGet = vi.fn(async (key: string) => {
@@ -98,6 +117,23 @@ it('loaded 后的变更触发 4 键全量持久化', async () => {
   await flushPersist()
   expect(setSpy).toHaveBeenCalledTimes(4)
   expect(setSpy).toHaveBeenCalledWith('ui.theme', 'dark')
+  expect(setSpy).toHaveBeenCalledWith('reader.font_size', 'standard')
+  expect(setSpy).toHaveBeenCalledWith('reader.line_height', 'standard')
+  expect(setSpy).toHaveBeenCalledWith('reader.page_width', 'standard')
+})
+
+it('新主题值照常持久化：ui.theme 键名与 4 键全量写入格式不变', async () => {
+  const gateway = new MockGateway()
+  const setSpy = vi.fn(async () => {})
+  gateway.settingsSet = setSpy
+  setGateway(gateway)
+  const preferences = usePreferencesStore()
+  preferences.startPersist()
+  await preferences.load()
+  preferences.theme = 'sakura'
+  await flushPersist()
+  expect(setSpy).toHaveBeenCalledTimes(4)
+  expect(setSpy).toHaveBeenCalledWith('ui.theme', 'sakura')
   expect(setSpy).toHaveBeenCalledWith('reader.font_size', 'standard')
   expect(setSpy).toHaveBeenCalledWith('reader.line_height', 'standard')
   expect(setSpy).toHaveBeenCalledWith('reader.page_width', 'standard')
@@ -178,6 +214,22 @@ it('resolvedTheme 显式指定时忽略系统偏好', () => {
   preferences.theme = 'light'
   expect(preferences.resolvedTheme).toBe('light')
   preferences.theme = 'dark'
+  expect(preferences.resolvedTheme).toBe('dark')
+})
+
+it('新主题值合法加载且 resolvedTheme 原样返回', async () => {
+  const gateway = new MockGateway()
+  const values: Record<string, string> = { 'ui.theme': 'green' }
+  gateway.settingsGet = vi.fn(async (key: string) => values[key] ?? null)
+  setGateway(gateway)
+  const preferences = usePreferencesStore()
+  await preferences.load()
+  expect(preferences.theme).toBe('green')
+  restoreSystemPrefersDark = setSystemPrefersDarkResolver(() => true)
+  // 显式主题忽略系统深色偏好，resolvedTheme 原样返回具体主题 id。
+  expect(preferences.resolvedTheme).toBe('green')
+  // system 解析路径不回归。
+  preferences.theme = 'system'
   expect(preferences.resolvedTheme).toBe('dark')
 })
 

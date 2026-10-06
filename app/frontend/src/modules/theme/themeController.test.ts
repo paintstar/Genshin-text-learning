@@ -17,6 +17,8 @@ import { naiveThemeFor } from './themeOverrides'
 import {
   DARK_THEME_CLASS,
   initThemeController,
+  THEME_CLASSES,
+  themeClassFor,
   type DocumentLike,
   type MediaQueryLike,
   type ThemeController,
@@ -156,6 +158,56 @@ describe('initThemeController', () => {
     expect(classList.contains(DARK_THEME_CLASS)).toBe(false)
   })
 
+  it('多主题 class 落地与切换清理', async () => {
+    const preferences = usePreferencesStore()
+    preferences.theme = 'green'
+    const media = fakeMatchMedia(false)
+    const { doc, classList } = fakeDocument()
+    controller = initThemeController(preferences, {
+      matchMedia: media.matchMedia,
+      document: doc,
+    })
+    // class 名为 styles.css 配色任务的选择器接口，跨任务契约以字面量锁定。
+    expect(classList.contains('theme-green')).toBe(true)
+    expect(classList.contains('dark')).toBe(false)
+    preferences.theme = 'dark'
+    await nextTick()
+    expect(classList.contains('dark')).toBe(true)
+    expect(classList.contains('theme-green')).toBe(false)
+    // dark→green 方向亦同断言一次。
+    preferences.theme = 'green'
+    await nextTick()
+    expect(classList.contains('theme-green')).toBe(true)
+    expect(classList.contains('dark')).toBe(false)
+    preferences.theme = 'light'
+    await nextTick()
+    for (const cls of THEME_CLASSES) {
+      expect(classList.contains(cls)).toBe(false)
+    }
+  })
+
+  it('sakura/aqua class 落地与互相切换清理（规则表剩余行）', async () => {
+    const preferences = usePreferencesStore()
+    preferences.theme = 'sakura'
+    const media = fakeMatchMedia(false)
+    const { doc, classList } = fakeDocument()
+    controller = initThemeController(preferences, {
+      matchMedia: media.matchMedia,
+      document: doc,
+    })
+    // class 名为 styles.css 配色任务的选择器接口，跨任务契约以字面量锁定。
+    expect(classList.contains('theme-sakura')).toBe(true)
+    expect(classList.contains('theme-aqua')).toBe(false)
+    preferences.theme = 'aqua'
+    await nextTick()
+    expect(classList.contains('theme-aqua')).toBe(true)
+    expect(classList.contains('theme-sakura')).toBe(false)
+  })
+
+  it('THEME_CLASSES 与 THEME_VALUES 派生一致', () => {
+    expect(THEME_CLASSES).toEqual(['dark', 'theme-green', 'theme-sakura', 'theme-aqua'])
+  })
+
   it('dispose 停止联动并还原 resolver，且幂等', async () => {
     const preferences = usePreferencesStore()
     preferences.theme = 'system'
@@ -223,5 +275,15 @@ describe('initThemeController', () => {
     await nextTick()
     expect(preferences.resolvedTheme).toBe('dark')
     expect(() => controller!.dispose()).not.toThrow()
+  })
+})
+
+describe('themeClassFor', () => {
+  it('规则表：light 无 class、dark 沿用裸 dark、其余落 theme-{id}', () => {
+    expect(themeClassFor('light')).toBe(null)
+    expect(themeClassFor('dark')).toBe('dark')
+    expect(themeClassFor('green')).toBe('theme-green')
+    expect(themeClassFor('sakura')).toBe('theme-sakura')
+    expect(themeClassFor('aqua')).toBe('theme-aqua')
   })
 })

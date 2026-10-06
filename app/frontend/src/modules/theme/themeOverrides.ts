@@ -1,8 +1,9 @@
 /** naive-ui 主题纯映射：浅/深两套 overrides 常量与主题选择函数，供 App.vue 与测试消费。 */
 
 import { darkTheme, type GlobalThemeOverrides } from 'naive-ui'
+import type { ConcreteTheme } from '@/stores/preferences'
 
-export type ResolvedTheme = 'light' | 'dark'
+export type ResolvedTheme = ConcreteTheme
 
 /** 浅色 overrides：App.vue 现有 theme 常量的等价拆分（浅色值原样保留）。 */
 export const lightOverrides: GlobalThemeOverrides = {
@@ -44,12 +45,30 @@ export const darkOverrides: GlobalThemeOverrides = {
   Card: { borderRadius: '16px', titleFontSizeSmall: '16px' },
 }
 
+/** 主题 → overrides 查表：新主题初值复用浅色基底引用（中间态：浅色复制品）。 */
+const overridesByTheme: Record<ConcreteTheme, GlobalThemeOverrides> = {
+  light: lightOverrides,
+  dark: darkOverrides,
+  green: lightOverrides,
+  sakura: lightOverrides,
+  aqua: lightOverrides,
+}
+
+/** 主题 → naive 内置主题基底：深色系归类单点维护，后续配色任务走深色系只改此表。 */
+const naiveBasesByTheme: Record<ConcreteTheme, typeof darkTheme | null> = {
+  light: null,
+  dark: darkTheme,
+  green: null,
+  sakura: null,
+  aqua: null,
+}
+
 /** 主题 → overrides 查表（直接返回模块常量引用）。 */
 export function themeOverridesFor(resolvedTheme: ResolvedTheme): GlobalThemeOverrides {
-  return resolvedTheme === 'dark' ? darkOverrides : lightOverrides
+  return overridesByTheme[resolvedTheme]
 }
 
 /** 主题 → naive 内置主题：深色返回 darkTheme，浅色返回默认（null）。 */
 export function naiveThemeFor(resolvedTheme: ResolvedTheme): typeof darkTheme | null {
-  return resolvedTheme === 'dark' ? darkTheme : null
+  return naiveBasesByTheme[resolvedTheme]
 }

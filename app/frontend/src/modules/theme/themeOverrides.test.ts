@@ -10,6 +10,7 @@
 
 import { describe, expect, it } from 'vitest'
 import { darkTheme } from 'naive-ui'
+import { THEME_VALUES, type ConcreteTheme } from '@/stores/preferences'
 // @ts-expect-error 项目未安装 @types/node（tsconfig types 仅 vite/client）；node 测试环境运行时按真实模块解析
 import { readFileSync } from 'node:fs'
 import {
@@ -91,6 +92,23 @@ describe('themeOverrides', () => {
     expect(themeOverridesFor('dark')).toBe(darkOverrides)
     expect(naiveThemeFor('dark')).toBe(darkTheme)
     expect(naiveThemeFor('light')).toBe(null)
+  })
+
+  it('查表对全部主题 id 完备且基底归类正确', () => {
+    const concreteThemes = THEME_VALUES.filter((v): v is ConcreteTheme => v !== 'system')
+    for (const id of concreteThemes) {
+      const overrides = themeOverridesFor(id)
+      // 引用二选一：运行时再锁一道完备性，防日后改 Partial 出现 undefined 分支。
+      expect(overrides === lightOverrides || overrides === darkOverrides).toBe(true)
+    }
+    expect(themeOverridesFor('green')).toBe(lightOverrides)
+    expect(themeOverridesFor('sakura')).toBe(lightOverrides)
+    expect(themeOverridesFor('aqua')).toBe(lightOverrides)
+    expect(naiveThemeFor('dark')).toBe(darkTheme)
+    expect(naiveThemeFor('light')).toBe(null)
+    expect(naiveThemeFor('green')).toBe(null)
+    expect(naiveThemeFor('sakura')).toBe(null)
+    expect(naiveThemeFor('aqua')).toBe(null)
   })
 
   it('html.dark 只覆盖变量值：块内仅变量与 color-scheme 声明，变量集与 :root 完全一致', () => {

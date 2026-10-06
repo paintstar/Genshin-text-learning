@@ -49,6 +49,9 @@ it('值到文案的映射与任务规定文案逐字一致', () => {
     system: '跟随系统',
     light: '浅色',
     dark: '深色',
+    green: '青绿',
+    sakura: '绯樱',
+    aqua: '水色',
   })
   expect(toMap(FONT_SIZE_OPTIONS)).toEqual({
     small: '小',
