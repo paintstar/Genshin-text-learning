@@ -143,7 +143,22 @@ describe('全局字号 CSS 消费点同源锁定', () => {
     expect(row).toContain(
       'font-size: calc(10px * var(--ui-font-scale, 1) * var(--reader-font-scale, 1))',
     )
-    // 其余消费文件按 --ui-font-scale 恰量计数；AppearanceSettings 为 R4 转换不设锁。
+    // 其余消费文件按 --ui-font-scale 恰量计数。
+    const appearance = readFileSync(
+      new URL('../../views/AppearanceSettings.vue', import.meta.url),
+      'utf8',
+    )
+    // R4 已收口：.setting-copy calc 化，.pref-row/.pref-label 随阅读排版卡删除。
+    expect(appearance.match(/--ui-font-scale/g)?.length).toBe(1)
+    // 零裸 px（契约 5，同 styles.css 款式）：新增未缩放字号即失败。
+    expect(appearance.match(/font-size:\s*\d+px/g)).toBe(null)
+    const panel = readFileSync(
+      new URL('../../components/ReaderLayoutPanel.vue', import.meta.url),
+      'utf8',
+    )
+    // .reader-layout-hint + .layout-field-label 两处 calc 化。
+    expect(panel.match(/--ui-font-scale/g)?.length).toBe(2)
+    expect(panel.match(/font-size:\s*\d+px/g)).toBe(null)
     const dictionary = readFileSync(
       new URL('../../views/DictionaryView.vue', import.meta.url),
       'utf8',

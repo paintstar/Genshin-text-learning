@@ -135,7 +135,7 @@ async function restore() {
       <button
         v-for="tab in [
           { value: 'data', label: '剧情与词典' },
-          { value: 'appearance', label: '界面与阅读' },
+          { value: 'appearance', label: '界面外观' },
           { value: 'ai', label: '语言助手' },
           { value: 'backup', label: '备份与恢复' },
           { value: 'about', label: '关于' },

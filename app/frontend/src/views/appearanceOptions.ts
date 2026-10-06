@@ -1,4 +1,4 @@
-/** 「界面与阅读」分区选项数据：值取自 preferences store 常量（单一数据源），本模块只补中文文案。 */
+/** 「界面外观」分区与剧情阅读页排版面板共用的选项数据：值取自 preferences store 常量（单一数据源），本模块只补中文文案。 */
 
 import {
   FONT_SIZE_VALUES,

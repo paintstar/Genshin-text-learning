@@ -11,6 +11,7 @@ import AlignedRowView from '@/components/AlignedRowView.vue'
 import SelectionPopup from '@/components/SelectionPopup.vue'
 import AppIcon from '@/components/AppIcon.vue'
 import AiPanel from '@/components/AiPanel.vue'
+import ReaderLayoutPanel from '@/components/ReaderLayoutPanel.vue'
 import { SelectionAnalyzer } from '@/modules/nlp/selectionAnalyzer'
 import { sharedAnalyzer } from '@/modules/nlp/instance'
 import { getGateway } from '@/gateway/provider'
@@ -37,6 +38,7 @@ const selection = ref<SelectionResult | null>(null)
 const selectionLoading = ref(false)
 const selectionError = ref('')
 const showAi = ref(false)
+const layoutPanelOpen = ref(false)
 const currentRow = ref<{ row: AlignedRow; text: string } | null>(null)
 const analyzer = new SelectionAnalyzer(sharedAnalyzer, getGateway())
 const limit = ref(80)
@@ -350,6 +352,7 @@ function windowLinesFor(row: AlignedRow) {
           size="small"
         />假名注音</label
       >
+      <ReaderLayoutPanel v-model:open="layoutPanelOpen" />
     </div>
     <n-alert v-if="reader.fetchState === 'fetching'" type="info" class="notice"
       >正在准备本章的双语剧情，首次下载可能需要一些时间。<n-button
