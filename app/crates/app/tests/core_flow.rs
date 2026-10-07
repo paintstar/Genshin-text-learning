@@ -28,7 +28,12 @@ fn tb_block(init: &str, nodes: Vec<serde_json::Value>) -> serde_json::Value {
     json!({ "initDialog": init, "items": serde_json::Value::Object(items) })
 }
 
-fn node(id: &str, ty: &str, role: Option<&str>, texts: Vec<(&str, Option<&str>)>) -> serde_json::Value {
+fn node(
+    id: &str,
+    ty: &str,
+    role: Option<&str>,
+    texts: Vec<(&str, Option<&str>)>,
+) -> serde_json::Value {
     json!({
         "id": id,
         "node": {
@@ -58,13 +63,22 @@ fn index_json(entries: Vec<serde_json::Value>) -> Vec<u8> {
 }
 
 /// 可变 stub 源（支持热替换响应，模拟刷新与故障注入）。
+#[derive(Default)]
 struct MutableSource {
     inner: kb::port::StubSource,
+    blocked_quest: std::sync::atomic::AtomicI64,
+    started: tokio::sync::Notify,
+    release: tokio::sync::Notify,
+    calls: std::sync::Mutex<Vec<(i64, GameLang)>>,
 }
 
 impl MutableSource {
     fn set_detail(&self, quest_id: i64, lang: GameLang, bytes: Vec<u8>) {
-        self.inner.details.lock().unwrap().insert((quest_id, lang), bytes);
+        self.inner
+            .details
+            .lock()
+            .unwrap()
+            .insert((quest_id, lang), bytes);
     }
 }
 
@@ -79,6 +93,11 @@ impl QuestSource for MutableSource {
         lang: GameLang,
         v: Option<kb::HttpValidator>,
     ) -> Result<kb::FetchDetailOutcome, shared::AppError> {
+        self.calls.lock().unwrap().push((quest_id, lang));
+        if self.blocked_quest.load(std::sync::atomic::Ordering::SeqCst) == quest_id {
+            self.started.notify_one();
+            self.release.notified().await;
+        }
         self.inner.fetch_detail(quest_id, lang, v).await
     }
 }
@@ -99,6 +118,10 @@ fn setup_env() -> Env {
     // 词典缺失场景（不挂 dict.db）——词典功能停用，基线不受影响。
     let source = Arc::new(MutableSource {
         inner: kb::port::StubSource::default(),
+        blocked_quest: std::sync::atomic::AtomicI64::new(0),
+        started: tokio::sync::Notify::new(),
+        release: tokio::sync::Notify::new(),
+        calls: std::sync::Mutex::new(vec![]),
     });
     let state = compose(ComposeArgs {
         data_dir: dir.clone(),
@@ -113,34 +136,70 @@ fn setup_env() -> Env {
 }
 
 fn diamond_jp() -> Vec<u8> {
-    detail_json(vec![
-        tb_block(
-            "101",
-            vec![
-                node("101", "MultiDialog", Some("ナレーション"), vec![("どうする？", Some("102")), ("様子を見る", Some("103"))]),
-                node("102", "SingleDialog", Some("パイモン"), vec![("行こう！", Some("104"))]),
-                node("103", "SingleDialog", Some("パイモン"), vec![("待って……", Some("104"))]),
-                node("104", "SingleDialog", Some("パイモン"), vec![("着いた！", None)]),
-            ],
-        ),
-    ])
+    detail_json(vec![tb_block(
+        "101",
+        vec![
+            node(
+                "101",
+                "MultiDialog",
+                Some("ナレーション"),
+                vec![("どうする？", Some("102")), ("様子を見る", Some("103"))],
+            ),
+            node(
+                "102",
+                "SingleDialog",
+                Some("パイモン"),
+                vec![("行こう！", Some("104"))],
+            ),
+            node(
+                "103",
+                "SingleDialog",
+                Some("パイモン"),
+                vec![("待って……", Some("104"))],
+            ),
+            node(
+                "104",
+                "SingleDialog",
+                Some("パイモン"),
+                vec![("着いた！", None)],
+            ),
+        ],
+    )])
 }
 
 fn diamond_chs() -> Vec<u8> {
-    detail_json(vec![
-        tb_block(
-            "101",
-            vec![
-                node("101", "MultiDialog", Some("旁白"), vec![("怎么办？", Some("102")), ("先看看情况", Some("103"))]),
-                node("102", "SingleDialog", Some("派蒙"), vec![("走吧！", Some("104"))]),
-                node("103", "SingleDialog", Some("派蒙"), vec![("等等……", Some("104"))]),
-                node("104", "SingleDialog", Some("派蒙"), vec![("到了！", None)]),
-            ],
-        ),
-    ])
+    detail_json(vec![tb_block(
+        "101",
+        vec![
+            node(
+                "101",
+                "MultiDialog",
+                Some("旁白"),
+                vec![("怎么办？", Some("102")), ("先看看情况", Some("103"))],
+            ),
+            node(
+                "102",
+                "SingleDialog",
+                Some("派蒙"),
+                vec![("走吧！", Some("104"))],
+            ),
+            node(
+                "103",
+                "SingleDialog",
+                Some("派蒙"),
+                vec![("等等……", Some("104"))],
+            ),
+            node("104", "SingleDialog", Some("派蒙"), vec![("到了！", None)]),
+        ],
+    )])
 }
 
-async fn ingest_via_service(env: &Env, quest_id: i64, jp: Vec<u8>, chs: Vec<u8>) -> Result<kb::IngestResult, shared::AppError> {
+async fn ingest_via_service(
+    env: &Env,
+    quest_id: i64,
+    jp: Vec<u8>,
+    chs: Vec<u8>,
+) -> Result<kb::IngestResult, shared::AppError> {
     env.source.set_detail(quest_id, GameLang::Jp, jp);
     env.source.set_detail(quest_id, GameLang::Chs, chs);
     let flag = Arc::new(std::sync::atomic::AtomicBool::new(false));
@@ -151,7 +210,9 @@ async fn ingest_via_service(env: &Env, quest_id: i64, jp: Vec<u8>, chs: Vec<u8>)
 async fn core_flow_search_read_lookup_note_review() {
     let env = setup_env();
     // 首启索引同步（M0 门禁先拒后过）。
-    let e = app_lib::services::BootstrapService::sync(&env.state, false).await.unwrap_err();
+    let e = app_lib::services::BootstrapService::sync(&env.state, false)
+        .await
+        .unwrap_err();
     assert_eq!(e.kind, AppErrorKind::DataSource, "M0 门禁未过必须拒绝: {e}");
     env.state.gate.set_accepted(true);
 
@@ -161,7 +222,9 @@ async fn core_flow_search_read_lookup_note_review() {
     env.source.inner.index.lock().unwrap().insert(GameLang::Chs, index_json(vec![json!({
         "id": 1702, "type": "aq", "chapterNum": "第七章", "chapterTitle": "白夜国浮世画天梦", "route": "white-night", "chapterCount": 3
     })]));
-    app_lib::services::BootstrapService::sync(&env.state, false).await.unwrap();
+    app_lib::services::BootstrapService::sync(&env.state, false)
+        .await
+        .unwrap();
 
     // 搜索：日文名与中文名均可命中（LIKE 子串）。
     let hits_jp = env
@@ -174,7 +237,9 @@ async fn core_flow_search_read_lookup_note_review() {
     assert!(!hits_jp[0].has_cached_body, "未缓存状态如实标注");
 
     // 打开任务（首刷入库：唯一路径）。
-    let res = ingest_via_service(&env, 1702, diamond_jp(), diamond_chs()).await.unwrap();
+    let res = ingest_via_service(&env, 1702, diamond_jp(), diamond_chs())
+        .await
+        .unwrap();
     assert_eq!(res.align_status, "ok");
 
     // 图快照：菱形分支 + 双语行按统一定位键精确对齐。
@@ -196,18 +261,26 @@ async fn core_flow_search_read_lookup_note_review() {
         .iter()
         .find(|r| r.opt.dialog_id == "104" && r.lang == "chs")
         .unwrap();
-    assert_eq!(row_104_jp.opt, row_104_chs.opt, "同键两侧精确配对（opt_ref 相等）");
+    assert_eq!(
+        row_104_jp.opt, row_104_chs.opt,
+        "同键两侧精确配对（opt_ref 相等）"
+    );
     assert_eq!(row_104_jp.text.as_deref(), Some("着いた！"));
 
     // 划词查词（词典缺失 → dict_available=false，基线不受影响）。
     let dict = env
         .state
         .store
-        .with_read(|c| dict::DictSearchService::search(c, &[shared::dto::CandidateForm {
-            form: "行こう".into(),
-            form_kind: shared::dto::FormKind::Surface,
-            source_note: Some("词面".into()),
-        }]))
+        .with_read(|c| {
+            dict::DictSearchService::search(
+                c,
+                &[shared::dto::CandidateForm {
+                    form: "行こう".into(),
+                    form_kind: shared::dto::FormKind::Surface,
+                    source_note: Some("词面".into()),
+                }],
+            )
+        })
         .unwrap();
     assert!(!dict.dict_available);
 
@@ -216,27 +289,38 @@ async fn core_flow_search_read_lookup_note_review() {
     let note_id = env
         .state
         .store
-        .with_write(|c| study::NoteRepository::save(c, &SaveNoteInput {
-            kind: "word".into(),
-            opt_ref: OptRef::new(&loc, 0),
-            term_text: Some("行こう".into()),
-            term_reading: Some("イコウ".into()),
-            term_base: Some("行く".into()),
-            context_text: Some("行こう！".into()),
-            context_role: Some("パイモン".into()),
-            context_next: Some("104".into()),
-            context_is_choice: false,
-            analysis_snapshot_json: Some(r#"{"tokens":[]}"#.into()),
-            user_note: None,
-            tags: vec![],
-        }))
+        .with_write(|c| {
+            study::NoteRepository::save(
+                c,
+                &SaveNoteInput {
+                    kind: "word".into(),
+                    opt_ref: OptRef::new(&loc, 0),
+                    term_text: Some("行こう".into()),
+                    term_reading: Some("イコウ".into()),
+                    term_base: Some("行く".into()),
+                    context_text: Some("行こう！".into()),
+                    context_role: Some("パイモン".into()),
+                    context_next: Some("104".into()),
+                    context_is_choice: false,
+                    analysis_snapshot_json: Some(r#"{"tokens":[]}"#.into()),
+                    user_note: None,
+                    tags: vec![],
+                },
+            )
+        })
         .unwrap();
 
     // 回顾：按任务分组 + 任务名由 app 层组装。
     let by_task = app_lib::services::notes_by_task(&env.state, GameLang::Chs).unwrap();
     assert_eq!(by_task.groups.len(), 1);
-    assert_eq!(by_task.groups[0].quest_title.as_deref(), Some("白夜国浮世画天梦"));
-    assert_eq!(by_task.groups[0].notes[0].term_text.as_deref(), Some("行こう"));
+    assert_eq!(
+        by_task.groups[0].quest_title.as_deref(),
+        Some("白夜国浮世画天梦")
+    );
+    assert_eq!(
+        by_task.groups[0].notes[0].term_text.as_deref(),
+        Some("行こう")
+    );
 
     // 备份一致性（WAL 运行中 Backup API 导出含最新提交的笔记）。
     let backup = store::BackupService::new(app_lib::composition::all_fragments())
@@ -244,7 +328,9 @@ async fn core_flow_search_read_lookup_note_review() {
         .unwrap();
     {
         let conn = rusqlite::Connection::open(&backup.path).unwrap();
-        let n: i64 = conn.query_row("SELECT COUNT(*) FROM note", [], |r| r.get(0)).unwrap();
+        let n: i64 = conn
+            .query_row("SELECT COUNT(*) FROM note", [], |r| r.get(0))
+            .unwrap();
         assert_eq!(n, 1, "备份含最新已提交笔记（WAL 红线）");
     }
 
@@ -252,8 +338,8 @@ async fn core_flow_search_read_lookup_note_review() {
     let mut revised = diamond_jp();
     let revised_json: serde_json::Value = {
         let mut v: serde_json::Value = serde_json::from_slice(&revised).unwrap();
-        v["data"]["storyList"]["0"]["story"]["0"]["taskData"][0]["items"]["102"]["text"][0]["text"] =
-            json!("進もう！");
+        v["data"]["storyList"]["0"]["story"]["0"]["taskData"][0]["items"]["102"]["text"][0]
+            ["text"] = json!("進もう！");
         revised = serde_json::to_vec(&v).unwrap();
         v
     };
@@ -280,7 +366,11 @@ async fn core_flow_search_read_lookup_note_review() {
         .unwrap();
     assert!(note.provenance_stale);
     assert_eq!(note.stale_reason.as_deref(), Some("text_changed"));
-    assert_eq!(note.context_text.as_deref(), Some("行こう！"), "快照永不修改");
+    assert_eq!(
+        note.context_text.as_deref(),
+        Some("行こう！"),
+        "快照永不修改"
+    );
 
     let _ = std::fs::remove_dir_all(&env.dir);
 }
@@ -289,11 +379,14 @@ async fn core_flow_search_read_lookup_note_review() {
 async fn class_a_failure_keeps_old_data() {
     let env = setup_env();
     env.state.gate.set_accepted(true);
-    ingest_via_service(&env, 100, diamond_jp(), diamond_chs()).await.unwrap();
+    ingest_via_service(&env, 100, diamond_jp(), diamond_chs())
+        .await
+        .unwrap();
 
     // A 类注入：一侧 JSON 截断（结构非法）。
     env.source.set_detail(100, GameLang::Jp, diamond_jp());
-    env.source.set_detail(100, GameLang::Chs, b"{ broken".to_vec());
+    env.source
+        .set_detail(100, GameLang::Chs, b"{ broken".to_vec());
     let flag = Arc::new(std::sync::atomic::AtomicBool::new(false));
     let e = app_lib::services::UpdateService::phase2_refresh(&env.state, 100, &flag)
         .await
@@ -319,9 +412,24 @@ async fn class_b_and_c_ingest_degraded_with_records() {
     let chs_b = detail_json(vec![tb_block(
         "101",
         vec![
-            node("101", "MultiDialog", Some("旁白"), vec![("怎么办？", Some("102"))]),
-            node("102", "SingleDialog", Some("派蒙"), vec![("走吧！", Some("104"))]),
-            node("103", "SingleDialog", Some("派蒙"), vec![("等等……", Some("104"))]),
+            node(
+                "101",
+                "MultiDialog",
+                Some("旁白"),
+                vec![("怎么办？", Some("102"))],
+            ),
+            node(
+                "102",
+                "SingleDialog",
+                Some("派蒙"),
+                vec![("走吧！", Some("104"))],
+            ),
+            node(
+                "103",
+                "SingleDialog",
+                Some("派蒙"),
+                vec![("等等……", Some("104"))],
+            ),
             node("104", "SingleDialog", Some("派蒙"), vec![("到了！", None)]),
         ],
     )]);
@@ -336,16 +444,34 @@ async fn class_b_and_c_ingest_degraded_with_records() {
         .with_read(|c| kb::GraphQueryService::graph_snapshot(c, 200, "0", GameLang::Jp))
         .unwrap();
     let n101 = snap.nodes.iter().find(|n| n.dialog_id == "101").unwrap();
-    assert!(matches!(n101.status, shared::dto::NodeAlignStatus::MissingSide));
+    assert!(matches!(
+        n101.status,
+        shared::dto::NodeAlignStatus::MissingSide
+    ));
 
     // C 类：选项重排（同 opt_index next 目标不一致）。
     let jp_c = diamond_jp();
     let chs_c = detail_json(vec![tb_block(
         "101",
         vec![
-            node("101", "MultiDialog", Some("旁白"), vec![("先看看情况", Some("103")), ("怎么办？", Some("102"))]),
-            node("102", "SingleDialog", Some("派蒙"), vec![("走吧！", Some("104"))]),
-            node("103", "SingleDialog", Some("派蒙"), vec![("等等……", Some("104"))]),
+            node(
+                "101",
+                "MultiDialog",
+                Some("旁白"),
+                vec![("先看看情况", Some("103")), ("怎么办？", Some("102"))],
+            ),
+            node(
+                "102",
+                "SingleDialog",
+                Some("派蒙"),
+                vec![("走吧！", Some("104"))],
+            ),
+            node(
+                "103",
+                "SingleDialog",
+                Some("派蒙"),
+                vec![("等等……", Some("104"))],
+            ),
             node("104", "SingleDialog", Some("派蒙"), vec![("到了！", None)]),
         ],
     )]);
@@ -367,7 +493,9 @@ async fn class_b_and_c_ingest_degraded_with_records() {
 async fn refresh_unchanged_by_hash_touches_only_fetched_at() {
     let env = setup_env();
     env.state.gate.set_accepted(true);
-    ingest_via_service(&env, 400, diamond_jp(), diamond_chs()).await.unwrap();
+    ingest_via_service(&env, 400, diamond_jp(), diamond_chs())
+        .await
+        .unwrap();
     let before: i64 = env
         .state
         .store
@@ -418,25 +546,45 @@ async fn batch_sync_is_idempotent_and_single_path() {
             ]),
         );
     }
-    app_lib::services::BootstrapService::sync(&env.state, false).await.unwrap();
+    app_lib::services::BootstrapService::sync(&env.state, false)
+        .await
+        .unwrap();
     // 只提供 2 个任务的详情；1 号故意 A 类失败。
     env.source.set_detail(1, GameLang::Jp, b"{ broken".to_vec());
     env.source.set_detail(1, GameLang::Chs, diamond_chs());
     ingest_via_source(&env, 2).await;
     ingest_via_source(&env, 3).await;
 
-    let cancel = Arc::new(std::sync::atomic::AtomicBool::new(false));
-    let report = app_lib::services::BatchSyncService::run(env.state.clone(), 0, cancel, |_| {}).await;
+    let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
+    app_lib::services::BatchSyncService::start(
+        env.state.clone(),
+        None,
+        |_| {},
+        move |report| {
+            let _ = tx.send(report);
+        },
+        |_| {},
+    )
+    .unwrap();
+    let report = tokio::time::timeout(std::time::Duration::from_secs(2), rx.recv())
+        .await
+        .unwrap()
+        .unwrap();
     assert_eq!(report.total, 3);
     assert_eq!(report.succeeded, 2, "已完成任务幂等跳过");
-    assert_eq!(report.failed.len(), 1, "单任务 A 类失败记入失败清单不中断批量");
+    assert_eq!(
+        report.failed.len(),
+        1,
+        "单任务 A 类失败记入失败清单不中断批量"
+    );
     assert_eq!(report.failed[0].quest_id, 1);
     let _ = std::fs::remove_dir_all(&env.dir);
 }
 
 async fn ingest_via_source(env: &Env, quest_id: i64) {
     env.source.set_detail(quest_id, GameLang::Jp, diamond_jp());
-    env.source.set_detail(quest_id, GameLang::Chs, diamond_chs());
+    env.source
+        .set_detail(quest_id, GameLang::Chs, diamond_chs());
 }
 
 #[tokio::test]
@@ -444,7 +592,9 @@ async fn locator_key_family_across_domains() {
     // 红线：统一定位键全库唯一——对白行、笔记、进度、override 同一键族。
     let env = setup_env();
     env.state.gate.set_accepted(true);
-    ingest_via_service(&env, 500, diamond_jp(), diamond_chs()).await.unwrap();
+    ingest_via_service(&env, 500, diamond_jp(), diamond_chs())
+        .await
+        .unwrap();
     let loc = DlgLoc::new(500, "0", "0", 0, "104");
     let opt = OptRef::new(&loc, 0);
     // 进度。
@@ -457,27 +607,38 @@ async fn locator_key_family_across_domains() {
         .store
         .with_write(|c| {
             study::ReadingOverrideService::save(
-                c, "jp", "行こう", "いこう", study::OverrideScope::Dialog, Some(&loc), "user",
+                c,
+                "jp",
+                "行こう",
+                "いこう",
+                study::OverrideScope::Dialog,
+                Some(&loc),
+                "user",
             )
         })
         .unwrap();
     // 笔记。
     env.state
         .store
-        .with_write(|c| study::NoteRepository::save(c, &SaveNoteInput {
-            kind: "sentence".into(),
-            opt_ref: opt.clone(),
-            term_text: None,
-            term_reading: None,
-            term_base: None,
-            context_text: Some("着いた！".into()),
-            context_role: None,
-            context_next: None,
-            context_is_choice: false,
-            analysis_snapshot_json: None,
-            user_note: None,
-            tags: vec![],
-        }))
+        .with_write(|c| {
+            study::NoteRepository::save(
+                c,
+                &SaveNoteInput {
+                    kind: "sentence".into(),
+                    opt_ref: opt.clone(),
+                    term_text: None,
+                    term_reading: None,
+                    term_base: None,
+                    context_text: Some("着いた！".into()),
+                    context_role: None,
+                    context_next: None,
+                    context_is_choice: false,
+                    analysis_snapshot_json: None,
+                    user_note: None,
+                    tags: vec![],
+                },
+            )
+        })
         .unwrap();
     // override 解析按 dlg_loc 命中。
     let hit = env
@@ -511,8 +672,7 @@ fn _parse_anchor(b: &[u8]) -> Option<kb::ParsedDetail> {
 fn dict_db_fixture_mounts_and_query_merges_term_table() {
     // 用 tools/build-dict --fixture 构建的真实 dict.db（含 zhwiktionary 形状种子）
     // 验证：挂载成功、跨库查询、术语表合并优先。
-    let dict_path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../resources/dict.db");
+    let dict_path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../resources/dict.db");
     if !dict_path.exists() {
         eprintln!("跳过：dict.db fixture 不存在");
         return;
@@ -525,7 +685,7 @@ fn dict_db_fixture_mounts_and_query_merges_term_table() {
         source_base_url: "stub://test".into(),
         fetch_interval_ms: 0,
         secret_vault: Some(Arc::new(store::InMemoryVault::default())),
-        source_override: Some(Arc::new(MutableSource { inner: kb::port::StubSource::default() })),
+        source_override: Some(Arc::new(MutableSource::default())),
     })
     .unwrap();
     assert!(state.store.with_read(|c| Ok(dict::is_mounted(c))).unwrap());
@@ -544,7 +704,10 @@ fn dict_db_fixture_mounts_and_query_merges_term_table() {
         })
         .unwrap();
     assert!(r.dict_available);
-    assert!(r.entries.iter().any(|e| e.headword == "食べる"), "词典查询命中");
+    assert!(
+        r.entries.iter().any(|e| e.headword == "食べる"),
+        "词典查询命中"
+    );
     // 术语表合并：加入 (jp 白夜国 / chs 白夜国) 后按最优先返回。
     state
         .store
@@ -555,8 +718,14 @@ fn dict_db_fixture_mounts_and_query_merges_term_table() {
                     source: "user".into(),
                     note: None,
                     texts: vec![
-                        shared::dto::LangText { lang: "jp".into(), text: "白夜国".into() },
-                        shared::dto::LangText { lang: "chs".into(), text: "白夜国".into() },
+                        shared::dto::LangText {
+                            lang: "jp".into(),
+                            text: "白夜国".into(),
+                        },
+                        shared::dto::LangText {
+                            lang: "chs".into(),
+                            text: "白夜国".into(),
+                        },
                     ],
                 },
             )
@@ -575,7 +744,11 @@ fn dict_db_fixture_mounts_and_query_merges_term_table() {
             )
         })
         .unwrap();
-    assert_eq!(r.entries[0].source, shared::dto::DictSource::Term, "术语表条目最优先");
+    assert_eq!(
+        r.entries[0].source,
+        shared::dto::DictSource::Term,
+        "术语表条目最优先"
+    );
     let _ = std::fs::remove_dir_all(&dir);
 }
 
@@ -587,12 +760,34 @@ fn first_chapter_comes_from_real_source_ids() {
     let chs = std::fs::read(dir.join("quest-1702-chs.json")).unwrap();
     let jp_parsed = parse_detail(&jp).unwrap();
     let chs_parsed = parse_detail(&chs).unwrap();
-    env.state.store.with_write(|c| {
-        kb::QuestIngestor::ingest_detail(c, 1702,
-            (&jp_parsed, &RawArchive { bytes: jp, validator: None }),
-            (&chs_parsed, &RawArchive { bytes: chs, validator: None }))
-    }).unwrap();
-    let snapshot = env.state.store.with_read(|c| kb::GraphQueryService::graph_snapshot(c,1702,"",GameLang::Jp)).unwrap();
+    env.state
+        .store
+        .with_write(|c| {
+            kb::QuestIngestor::ingest_detail(
+                c,
+                1702,
+                (
+                    &jp_parsed,
+                    &RawArchive {
+                        bytes: jp,
+                        validator: None,
+                    },
+                ),
+                (
+                    &chs_parsed,
+                    &RawArchive {
+                        bytes: chs,
+                        validator: None,
+                    },
+                ),
+            )
+        })
+        .unwrap();
+    let snapshot = env
+        .state
+        .store
+        .with_read(|c| kb::GraphQueryService::graph_snapshot(c, 1702, "", GameLang::Jp))
+        .unwrap();
     // 真实样本允许从 0 开始；选取规则由数据决定。
     assert_eq!(snapshot.sub_quest_id, snapshot.subs[0].sub_quest_id);
     assert!(!snapshot.rows.is_empty());
@@ -608,12 +803,170 @@ fn search_filters_before_limit_and_treats_wildcards_literally() {
         json!({"id":2,"type":"wq","chapterTitle":"其他"}),
         json!({"id":3,"type":"wq","chapterTitle":"进度100%"}),
         json!({"id":4,"type":"aq","chapterTitle":"任务编辑器$UNRELEASED"}),
-    ])).unwrap();
-    env.state.store.with_write(|c| kb::IndexIngestor::ingest_index(c,GameLang::Chs,&entries)).unwrap();
-    let found = env.state.store.with_read(|c| kb::QuestSearchService::search(c,"",Some("aq"),1)).unwrap();
-    assert_eq!(found.len(),1);
-    assert_eq!(found[0].quest_id,1);
-    let percent = env.state.store.with_read(|c| kb::QuestSearchService::search(c,"%",None,100)).unwrap();
-    assert_eq!(percent.len(),1);
-    assert_eq!(percent[0].quest_id,3);
+    ]))
+    .unwrap();
+    env.state
+        .store
+        .with_write(|c| kb::IndexIngestor::ingest_index(c, GameLang::Chs, &entries))
+        .unwrap();
+    let found = env
+        .state
+        .store
+        .with_read(|c| kb::QuestSearchService::search(c, "", Some("aq"), 1))
+        .unwrap();
+    assert_eq!(found.len(), 1);
+    assert_eq!(found[0].quest_id, 1);
+    let percent = env
+        .state
+        .store
+        .with_read(|c| kb::QuestSearchService::search(c, "%", None, 100))
+        .unwrap();
+    assert_eq!(percent.len(), 1);
+    assert_eq!(percent[0].quest_id, 3);
+}
+
+async fn download_test_index(env: &Env) {
+    env.state.gate.set_accepted(true);
+    for lang in [GameLang::Jp, GameLang::Chs] {
+        env.source.inner.index.lock().unwrap().insert(
+            lang,
+            index_json(vec![
+                json!({"id": 1, "type": "wq", "chapterTitle": "任务一", "chapterCount": 1}),
+                json!({"id": 2, "type": "wq", "chapterTitle": "任务二", "chapterCount": 1}),
+                json!({"id": 3, "type": "wq", "chapterTitle": "任务三", "chapterCount": 1}),
+            ]),
+        );
+    }
+    app_lib::services::BootstrapService::sync(&env.state, false)
+        .await
+        .unwrap();
+    for id in [1, 2, 3] {
+        ingest_via_source(env, id).await;
+    }
+}
+
+#[tokio::test]
+async fn selected_download_skips_cache_and_duplicates_and_reports_progress() {
+    let env = setup_env();
+    download_test_index(&env).await;
+    app_lib::services::fetch_and_ingest(&env.state, 1, &std::sync::atomic::AtomicBool::new(false))
+        .await
+        .unwrap();
+    env.source.calls.lock().unwrap().clear();
+    let progress = Arc::new(std::sync::Mutex::new(Vec::new()));
+    let events = progress.clone();
+    let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
+    let handle = app_lib::services::BatchSyncService::start(
+        env.state.clone(),
+        Some(vec![1, 2, 2]),
+        move |p| events.lock().unwrap().push(p),
+        move |r| {
+            let _ = tx.send(r);
+        },
+        |_| {},
+    )
+    .unwrap();
+    let report = tokio::time::timeout(std::time::Duration::from_secs(2), rx.recv())
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        (report.handle, report.total, report.succeeded),
+        (handle, 1, 1)
+    );
+    assert_eq!(
+        env.source.calls.lock().unwrap().len(),
+        2,
+        "只请求所选未缓存任务的两种语言"
+    );
+    assert!(env
+        .state
+        .store
+        .with_read(|c| kb::query::quest_has_body(c, 2))
+        .unwrap());
+    assert!(!env
+        .state
+        .store
+        .with_read(|c| kb::query::quest_has_body(c, 3))
+        .unwrap());
+    let events = progress.lock().unwrap();
+    assert_eq!(events.last().unwrap().done, 1);
+    assert!(events.iter().any(|p| p.current_job.is_some()));
+    assert!(env
+        .state
+        .batch_sync
+        .lock()
+        .unwrap()
+        .as_ref()
+        .unwrap()
+        .report
+        .is_some());
+}
+
+#[tokio::test]
+async fn background_download_deduplicates_reader_and_can_cancel_without_blocking_cached_read() {
+    use std::sync::atomic::{AtomicBool, Ordering};
+    let env = setup_env();
+    download_test_index(&env).await;
+    app_lib::services::fetch_and_ingest(&env.state, 1, &AtomicBool::new(false))
+        .await
+        .unwrap();
+    env.source.calls.lock().unwrap().clear();
+    env.source.blocked_quest.store(2, Ordering::SeqCst);
+    let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
+    let batch = app_lib::services::BatchSyncService::start(
+        env.state.clone(),
+        Some(vec![2, 3]),
+        |_| {},
+        move |r| {
+            let _ = tx.send(r);
+        },
+        |_| {},
+    )
+    .unwrap();
+    tokio::time::timeout(
+        std::time::Duration::from_secs(2),
+        env.source.started.notified(),
+    )
+    .await
+    .unwrap();
+    let cached =
+        app_lib::services::QuestOpenService::open(env.state.clone(), 1, "0", |_| {}).unwrap();
+    assert!(cached.snapshot.is_some(), "后台下载不能阻塞已缓存剧情");
+    let reader = app_lib::services::QuestOpenService::open(env.state.clone(), 2, "0", |_| {})
+        .unwrap()
+        .job
+        .unwrap();
+    let duplicate = app_lib::services::QuestOpenService::open(env.state.clone(), 2, "0", |_| {})
+        .unwrap()
+        .job
+        .unwrap();
+    assert_eq!(reader.handle, duplicate.handle);
+    assert_ne!(reader.handle, batch, "取消句柄跨下载类型不可冲突");
+    assert_eq!(env.source.calls.lock().unwrap().len(), 1);
+    assert!(app_lib::services::BatchSyncService::start(
+        env.state.clone(),
+        Some(vec![3]),
+        |_| {},
+        |_| {},
+        |_| {}
+    )
+    .is_err());
+    assert!(env.state.cancels.cancel(batch));
+    let report = tokio::time::timeout(std::time::Duration::from_secs(2), rx.recv())
+        .await
+        .unwrap()
+        .unwrap();
+    assert!(report.cancelled);
+    assert_eq!(report.succeeded, 0);
+    assert_eq!(
+        env.source.calls.lock().unwrap().len(),
+        1,
+        "取消后不启动队列下一项"
+    );
+    assert!(!env
+        .state
+        .store
+        .with_read(|c| kb::query::quest_has_body(c, 2))
+        .unwrap());
 }

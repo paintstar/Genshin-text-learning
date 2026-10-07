@@ -2,11 +2,13 @@
 import { onMounted, ref } from 'vue'
 import { useMessage } from 'naive-ui'
 import { useSettingsStore } from '@/stores/settings'
+import { useDownloadsStore } from '@/stores/downloads'
 import { useAiStore } from '@/stores/ai'
 import { getGateway } from '@/gateway/provider'
 import type { AiProfileDto, AiProfileInput } from '@/gateway/bindings'
 import AppearanceSettings from './AppearanceSettings.vue'
 const settings = useSettingsStore()
+const downloads = useDownloadsStore()
 const ai = useAiStore()
 const message = useMessage()
 const section = ref('data')
@@ -190,57 +192,20 @@ async function restore() {
         <n-space
           ><n-button
             type="primary"
-            :loading="settings.busy && settings.syncHandle === null"
+            :loading="settings.busy"
             :disabled="settings.busy || !settings.init?.termsAccepted"
             @click="settings.bootstrap()"
             >更新任务目录</n-button
           ><n-button
             :disabled="
-              settings.busy ||
+              settings.busy || downloads.running || downloads.starting ||
               !settings.init?.indexReady ||
               !settings.init?.termsAccepted
             "
-            @click="settings.startBatchSync()"
+            @click="downloads.start()"
             >下载全部剧情</n-button
-          ><n-button
-            v-if="settings.syncHandle !== null"
-            @click="settings.cancelBatchSync()"
-            >取消下载</n-button
-          ></n-space
-        >
-        <div v-if="settings.syncProgress" class="sync-status">
-          <n-progress
-            type="line"
-            :percentage="
-              Math.min(
-                100,
-                Math.round(
-                  ((settings.syncProgress.done +
-                    settings.syncProgress.failedCount) /
-                    Math.max(1, settings.syncProgress.total)) *
-                    100,
-                ),
-              )
-            "
-            :show-indicator="false"
-          />
-          <p>
-            已完成 {{ settings.syncProgress.done }} /
-            {{ settings.syncProgress.total }} · 失败
-            {{ settings.syncProgress.failedCount }}<br />{{
-              settings.syncProgress.currentQuestTitle || '正在准备…'
-            }}
-          </p>
-        </div>
-        <n-alert v-if="settings.syncReport" type="info" style="margin-top: 16px"
-          >{{
-            settings.syncReport.cancelled ? '下载已取消' : '下载已完成'
-          }}：成功 {{ settings.syncReport.succeeded }} 项，失败
-          {{
-            settings.syncReport.failed.length
-          }}
-          项。再次下载会跳过已保存的任务。</n-alert
-        >
+          ></n-space>
+        <p class="setting-copy">也可以在剧情书库多选需要的任务。下载在后台继续，进度会显示在页面顶部。</p>
         <div v-if="settings.updateReport" class="setting-copy">
           目录已更新：发现
           {{ settings.updateReport.newQuests.length }} 个新任务，{{

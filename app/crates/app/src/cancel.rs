@@ -7,7 +7,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 
 pub struct CancelRegistry {
-    flags: Mutex<HashMap<u64, Arc<AtomicBool>>>,
+    flags: Mutex<HashMap<u64, (Arc<AtomicBool>, Arc<tokio::sync::Notify>)>>,
 }
 
 impl Default for CancelRegistry {
@@ -21,18 +21,42 @@ impl Default for CancelRegistry {
 impl CancelRegistry {
     pub fn register(&self, id: u64) -> Arc<AtomicBool> {
         let flag = Arc::new(AtomicBool::new(false));
-        self.flags.lock().unwrap().insert(id, flag.clone());
+        self.flags
+            .lock()
+            .unwrap()
+            .insert(id, (flag.clone(), Arc::new(tokio::sync::Notify::new())));
         flag
     }
 
     pub fn cancel(&self, id: u64) -> bool {
         let f = self.flags.lock().unwrap().get(&id).cloned();
         match f {
-            Some(flag) => {
+            Some((flag, notify)) => {
                 flag.store(true, Ordering::SeqCst);
+                notify.notify_waiters();
                 true
             }
             None => false,
+        }
+    }
+
+    pub fn is_cancelled(&self, id: u64) -> bool {
+        self.flags
+            .lock()
+            .unwrap()
+            .get(&id)
+            .is_none_or(|(flag, _)| flag.load(Ordering::SeqCst))
+    }
+
+    pub async fn cancelled(&self, id: u64) {
+        let entry = self.flags.lock().unwrap().get(&id).cloned();
+        if let Some((flag, notify)) = entry {
+            let notified = notify.notified();
+            tokio::pin!(notified);
+            notified.as_mut().enable();
+            if !flag.load(Ordering::SeqCst) {
+                notified.await;
+            }
         }
     }
 

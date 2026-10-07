@@ -1,6 +1,6 @@
 /** naive-ui 主题纯映射：各主题 overrides 常量与主题选择函数，供 App.vue 与测试消费。
  *  字号族（common 七键与 Card/Message/Drawer/Form 组件字号）为全局界面字号因子，
- *  以内嵌 var(--ui-font-scale, 1) 的 calc 字符串烘入，五套常量逐字一致。 */
+ *  以内嵌 var(--ui-font-scale, 1) 的 calc 字符串烘入，各主题共用相同的字号规则。 */
 
 import { darkTheme, type GlobalThemeOverrides } from 'naive-ui'
 import type { ConcreteTheme } from '@/stores/preferences'
@@ -43,7 +43,7 @@ export const lightOverrides: GlobalThemeOverrides = {
   },
 }
 
-/** 深色 overrides：浅色敏感条目换深色值，主题无关条目共用同值。 */
+/** 森绿（原深色）：保留原有颜色和设置标识。 */
 export const darkOverrides: GlobalThemeOverrides = {
   common: {
     primaryColor: '#85c9a4',
@@ -76,6 +76,31 @@ export const darkOverrides: GlobalThemeOverrides = {
   Form: {
     labelFontSizeTopMedium: 'calc(14px * var(--ui-font-scale, 1))',
     feedbackFontSizeMedium: 'calc(14px * var(--ui-font-scale, 1))',
+  },
+}
+
+/** GitHub 风格深色：中性黑灰背景、蓝色强调，共用森绿的字体与圆角设置。 */
+export const blackOverrides: GlobalThemeOverrides = {
+  ...darkOverrides,
+  common: {
+    ...darkOverrides.common,
+    primaryColor: '#4493f8',
+    primaryColorHover: '#79c0ff',
+    primaryColorPressed: '#1f6feb',
+    primaryColorSuppl: '#4493f8',
+    textColorBase: '#f0f6fc',
+    textColor1: '#f0f6fc',
+    textColor2: '#b1bac4',
+    textColor3: '#9198a1',
+    placeholderColor: '#8b949e',
+    bodyColor: '#0d1117',
+    cardColor: '#151b23',
+    modalColor: '#151b23',
+    popoverColor: '#151b23',
+    inputColor: '#0d1117',
+    actionColor: '#1c2128',
+    borderColor: '#3d444d',
+    dividerColor: '#252c36',
   },
 }
 
@@ -190,15 +215,17 @@ export const aquaOverrides: GlobalThemeOverrides = {
 /** 主题 → overrides 查表：各主题指向各自 overrides 常量。 */
 const overridesByTheme: Record<ConcreteTheme, GlobalThemeOverrides> = {
   light: lightOverrides,
+  black: blackOverrides,
   dark: darkOverrides,
   green: greenOverrides,
   sakura: sakuraOverrides,
   aqua: aquaOverrides,
 }
 
-/** 主题 → naive 内置主题基底：深色系归类单点维护（dark 深色系，其余浅色系）。 */
+/** 主题 → naive 内置主题基底：深色系归类单点维护（black 与森绿 dark 为深色系）。 */
 const naiveBasesByTheme: Record<ConcreteTheme, typeof darkTheme | null> = {
   light: null,
+  black: darkTheme,
   dark: darkTheme,
   green: null,
   sakura: null,

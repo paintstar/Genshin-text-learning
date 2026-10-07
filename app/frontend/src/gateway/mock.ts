@@ -8,6 +8,10 @@ import type {
   AiAvailability,
   AiTestResult,
   AppInitInfo,
+  BatchSyncStatus,
+  BatchSyncReport,
+  SyncProgress,
+  FetchJobStatus,
   DictSearchResult,
   GraphSnapshot,
   NoteDto,
@@ -34,6 +38,12 @@ const QUEST: QuestSummary = {
   hasCachedBody: true,
   alignStatus: 'ok',
 }
+
+const PREVIEW_QUESTS: QuestSummary[] = [
+  QUEST,
+  { ...QUEST, questId: 1703, chapterCount: 1, hasCachedBody: false, titles: [{ lang: 'chs', text: '风起之章' }, { lang: 'jp', text: '風の始まり' }] },
+  { ...QUEST, questId: 1704, chapterCount: 1, hasCachedBody: false, titles: [{ lang: 'chs', text: '雪山的来信' }, { lang: 'jp', text: '雪山からの手紙' }] },
+]
 
 const SNAPSHOT: GraphSnapshot = {
   questId: 1702,
@@ -131,6 +141,13 @@ export class MockGateway implements Gateway {
   ]
   private nextId = 1
   private settings = new Map<string, string>()
+  private cached = new Set(PREVIEW_QUESTS.filter(q => q.hasCachedBody).map(q => q.questId))
+  private jobs = new Map<number, FetchJobStatus>()
+  private cancelled = new Set<number>()
+  private batch: BatchSyncStatus | null = null
+  private progressListeners = new Set<(p: SyncProgress) => void>()
+  private doneListeners = new Set<(r: BatchSyncReport) => void>()
+  private jobListeners = new Set<(j: FetchJobStatus) => void>()
 
   async appInit(): Promise<AppInitInfo> {
     return {
@@ -154,27 +171,45 @@ export class MockGateway implements Gateway {
   }
   async searchQuests(query: string, typeFilter?: string | null): Promise<QuestSummary[]> {
     await sleep(150)
-    if ((!typeFilter || typeFilter === QUEST.questType) && (!query || QUEST.titles.some(t => t.text.includes(query)))) return [QUEST]
-    return []
+    return PREVIEW_QUESTS.filter(q => (!typeFilter || typeFilter === q.questType) &&
+      (!query || q.titles.some(t => t.text.includes(query))))
+      .map(q => ({ ...q, hasCachedBody: this.cached.has(q.questId) }))
   }
-  async getQuestOverview(): Promise<QuestOverview> {
+  async getQuestOverview(questId = QUEST.questId): Promise<QuestOverview> {
     return {
-      summary: QUEST,
-      subs: SNAPSHOT.subs,
-      trees: SNAPSHOT.trees,
-      blockOrder: SNAPSHOT.blockOrder,
-      conflicts: [],
+      summary: { ...(PREVIEW_QUESTS.find(q => q.questId === questId) ?? QUEST), hasCachedBody: this.cached.has(questId) },
+      subs: SNAPSHOT.subs, trees: SNAPSHOT.trees, blockOrder: SNAPSHOT.blockOrder, conflicts: [],
     }
   }
-  async openSubQuestGraph(): Promise<OpenQuestResult> {
-    await sleep(200)
-    return { cached: true, snapshot: SNAPSHOT, job: null }
+  async openSubQuestGraph(questId = QUEST.questId, _subQuestId = ''): Promise<OpenQuestResult> {
+    if (!this.cached.has(questId)) return { cached: false, snapshot: null, job: this.beginDownload(questId) }
+    return { cached: true, snapshot: { ...SNAPSHOT, questId, rows: SNAPSHOT.rows.map(row => ({ ...row, opt: { ...row.opt, questId } })) }, job: null }
   }
-  async fetchJobStatus() {
-    return null
-  }
-  async cancelFetchJob() {
-    return true
+  async fetchJobStatus(handle: number): Promise<FetchJobStatus | null> { return structuredClone(this.jobs.get(handle) ?? null) }
+  async cancelFetchJob(handle: number) { this.cancelled.add(handle); return true }
+
+  private beginDownload(questId: number): FetchJobStatus {
+    const existing = [...this.jobs.values()].find(job => job.questId === questId && ['queued', 'fetching'].includes(job.state))
+    if (existing) return structuredClone(existing)
+    const phases = ['正在下载日文剧情', '正在下载中文剧情', '正在整理并保存剧情']
+    const job: FetchJobStatus = { handle: this.nextId++, questId, state: 'queued', error: null, completed: 0, total: phases.length, phase: '等待下载' }
+    this.jobs.set(job.handle, job)
+    void (async () => {
+      for (let index = 0; index < phases.length; index++) {
+        job.state = 'fetching'; job.completed = index; job.phase = phases[index]
+        this.jobListeners.forEach(cb => cb(structuredClone(job)))
+        await sleep(600)
+        if (this.cancelled.has(job.handle)) {
+          job.state = 'cancelled'; job.phase = '已取消'; job.error = '下载已取消'
+          this.jobListeners.forEach(cb => cb(structuredClone(job)))
+          return
+        }
+      }
+      this.cached.add(questId)
+      job.state = 'done'; job.completed = job.total; job.phase = '下载完成'
+      this.jobListeners.forEach(cb => cb(structuredClone(job)))
+    })()
+    return structuredClone(job)
   }
   async overviewPage(_q: number, _s: string, offset: number, limit: number) {
     return SNAPSHOT.nodes.slice(offset, offset + limit)
@@ -188,20 +223,51 @@ export class MockGateway implements Gateway {
   async updateRefresh() {
     return []
   }
-  async batchSyncStart() {
-    return 1
+  async batchSyncStart(questIds?: number[]): Promise<number> {
+    if (this.batch && !this.batch.report) throw new Error('已有后台下载')
+    const ids = [...new Set(questIds ?? PREVIEW_QUESTS.map(q => q.questId))].filter(id => !this.cached.has(id))
+    const handle = this.nextId++
+    const progress: SyncProgress = { handle, done: 0, total: ids.length, currentQuestTitle: null, failedCount: 0, currentJob: null }
+    this.batch = { progress, report: null }
+    const failed: BatchSyncReport['failed'] = []
+    const emit = () => this.progressListeners.forEach(cb => cb(structuredClone(progress)))
+    emit()
+    void (async () => {
+      for (const id of ids) {
+        if (this.cancelled.has(handle)) break
+        progress.currentQuestTitle = PREVIEW_QUESTS.find(q => q.questId === id)?.titles.find(t => t.lang === 'chs')?.text ?? ''
+        const job = this.beginDownload(id)
+        while (true) {
+          const status = this.jobs.get(job.handle)!
+          progress.currentJob = structuredClone(status); emit()
+          if (this.cancelled.has(handle)) { await this.cancelFetchJob(job.handle); break }
+          if (status.state === 'done') { progress.done++; break }
+          if (status.state === 'cancelled' || status.state === 'failed') {
+            progress.failedCount++
+            failed.push({ questId: id, title: progress.currentQuestTitle, reason: status.error || '下载失败' })
+            break
+          }
+          await sleep(100)
+        }
+        progress.currentJob = null
+      }
+      progress.currentQuestTitle = null; progress.currentJob = null; emit()
+      const report: BatchSyncReport = { handle, total: ids.length, succeeded: progress.done, failed, cancelled: this.cancelled.has(handle) }
+      this.batch = { progress, report }
+      this.doneListeners.forEach(cb => cb(structuredClone(report)))
+    })()
+    return handle
   }
-  async batchSyncCancel() {
-    return true
+  async batchSyncStatus(): Promise<BatchSyncStatus | null> { return structuredClone(this.batch) }
+  async batchSyncCancel(handle: number) { this.cancelled.add(handle); return true }
+  async onBatchSyncProgress(cb: (p: SyncProgress) => void): Promise<() => void> {
+    this.progressListeners.add(cb); return () => { this.progressListeners.delete(cb) }
   }
-  async onBatchSyncProgress(): Promise<() => void> {
-    return () => {}
+  async onBatchSyncDone(cb: (r: BatchSyncReport) => void): Promise<() => void> {
+    this.doneListeners.add(cb); return () => { this.doneListeners.delete(cb) }
   }
-  async onBatchSyncDone(): Promise<() => void> {
-    return () => {}
-  }
-  async onFetchJob(): Promise<() => void> {
-    return () => {}
+  async onFetchJob(cb: (s: FetchJobStatus) => void): Promise<() => void> {
+    this.jobListeners.add(cb); return () => { this.jobListeners.delete(cb) }
   }
   async dictSearch(candidates: { form: string; formKind: string; sourceNote?: string | null }[]): Promise<DictSearchResult> {
     await sleep(80)

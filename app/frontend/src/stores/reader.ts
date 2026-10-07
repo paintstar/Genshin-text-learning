@@ -3,6 +3,7 @@ import { markRaw } from 'vue'
 import { DialogGraph } from '@/modules/reader/dialogGraph'
 import { FollowReadSession } from '@/modules/reader/followReadSession'
 import { getGateway } from '@/gateway/provider'
+import { useDownloadsStore } from './downloads'
 import type {
   FetchJobStatus,
   GraphSnapshot,
@@ -30,6 +31,7 @@ export const useReaderStore = defineStore('reader', {
     fetchState: 'idle' as 'idle' | 'fetching' | 'failed' | 'cancelled',
     fetchError: null as string | null,
     fetchHandle: null as number | null,
+    fetchProgress: null as FetchJobStatus | null,
     mode: 'overview' as 'follow' | 'overview',
     furiganaOn: true,
     language: 'both' as 'both' | 'jp' | 'chs',
@@ -75,6 +77,7 @@ export const useReaderStore = defineStore('reader', {
       this.summary = null
       this.fetchState = 'fetching'
       this.fetchError = null
+      this.fetchProgress = null
       const gw = getGateway()
       let handle: number | null = null
       let finished = false
@@ -96,6 +99,7 @@ export const useReaderStore = defineStore('reader', {
           return
         }
         if (status.handle !== handle) return
+        this.fetchProgress = status
         if (!['done', 'failed', 'cancelled'].includes(status.state)) return
         finished = true
         stopFetch?.()
@@ -124,6 +128,8 @@ export const useReaderStore = defineStore('reader', {
         }
       }
       try {
+        await useDownloadsStore().connect()
+        if (request !== openSequence) return
         // 先监听再调用，缓存可能早于 command 返回的终态事件。
         const off = await gw.onFetchJob((s) => {
           void update(s)
@@ -183,6 +189,7 @@ export const useReaderStore = defineStore('reader', {
         : new FollowReadSession(graph)
       this.currentSubId = snapshot.subQuestId
       this.fetchState = 'idle'
+      this.fetchProgress = null
     },
     async restoreProgressFor(questId: number) {
       try {

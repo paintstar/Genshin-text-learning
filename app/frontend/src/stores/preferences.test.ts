@@ -225,7 +225,7 @@ it('resolvedTheme 在 system 下跟随系统深色偏好', () => {
   restoreSystemPrefersDark = setSystemPrefersDarkResolver(() => true)
   const preferences = usePreferencesStore()
   preferences.theme = 'system'
-  expect(preferences.resolvedTheme).toBe('dark')
+  expect(preferences.resolvedTheme).toBe('black')
 })
 
 it('resolvedTheme 在 system 下无深色偏好时为 light', () => {
@@ -257,7 +257,7 @@ it('新主题值合法加载且 resolvedTheme 原样返回', async () => {
   expect(preferences.resolvedTheme).toBe('green')
   // system 解析路径不回归。
   preferences.theme = 'system'
-  expect(preferences.resolvedTheme).toBe('dark')
+  expect(preferences.resolvedTheme).toBe('black')
 })
 
 it('resolver 还原函数调用后恢复默认系统偏好实现', () => {
@@ -338,4 +338,21 @@ it('保存失败后仅重试失败项，其他项成功不会清除错误', asyn
   expect(setSpy.mock.calls).toEqual([
     ['ui.theme', 'dark'], ['reader.font_size', 'large'], ['ui.theme', 'dark'],
   ])
+})
+
+
+it.each(['dark', 'black'] as const)('森绿与新深色偏好可独立保存并恢复：%s', async (theme) => {
+  const gateway = new MockGateway()
+  setGateway(gateway)
+  const preferences = usePreferencesStore()
+  await preferences.load()
+  preferences.startPersist()
+  preferences.theme = theme
+  await flushPersist()
+  preferences.stopPersist()
+  setActivePinia(createPinia())
+  const restored = usePreferencesStore()
+  await restored.load()
+  expect(restored.theme).toBe(theme)
+  expect(restored.resolvedTheme).toBe(theme)
 })

@@ -8,13 +8,14 @@ import {
   type ConcreteTheme,
 } from '@/stores/preferences'
 
-/** 深色 class 名，与 styles.css 的 `html.dark` 选择器对应（历史沿用，不加前缀）。 */
-export const DARK_THEME_CLASS = 'dark'
+/** 新深色主题；森绿继续沿用原来的 html.dark，兼容已保存的偏好。 */
+export const DARK_THEME_CLASS = 'theme-black'
+export const FOREST_THEME_CLASS = 'dark'
 
 /** light 主题不落 class；dark 沿用裸 'dark'（styles.css `html.dark` 选择器锁定）；其余主题落 `theme-{id}`。 */
 export function themeClassFor(theme: ConcreteTheme): string | null {
   if (theme === 'light') return null
-  return theme === 'dark' ? DARK_THEME_CLASS : `theme-${theme}`
+  return theme === 'dark' ? FOREST_THEME_CLASS : `theme-${theme}`
 }
 
 /** 全部主题 class 全集（由 THEME_VALUES 单点派生）：apply 每次整体清理，防跨主题切换残留。 */

@@ -10,6 +10,7 @@ pub mod commands;
 pub mod composition;
 pub mod services;
 pub mod state;
+pub mod window_state;
 
 pub fn app_version() -> &'static str {
     env!("CARGO_PKG_VERSION")

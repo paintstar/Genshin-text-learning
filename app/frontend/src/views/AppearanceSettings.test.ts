@@ -3,8 +3,8 @@
  * 参照 AlignedRowView.test.ts 范式；naive-ui 组件本地 stub，模块级 state 捕获 value）。
  *
  * 覆盖：默认偏好（未装配 gateway、loaded=false）下两张卡片（主题、全局字号）、
- * 全部 10 个选项按钮（值↔文案配对与模板顺序）；控件 value 与 store 字段的
- * 读取侧绑定（默认值与实时变更值）；文案如实（六主题枚举、全局作用域与阅读
+ * 全部 主题与字号选项按钮（值↔文案配对与模板顺序）；控件 value 与 store 字段的
+ * 读取侧绑定（默认值与实时变更值）；文案如实（七主题枚举、全局作用域与阅读
  * 排版迁移指引，负面锁排除旧表述）。
  * v-model 写入侧不在 SSR 覆盖（赋值链路由 v-model 语法与 preferences.test.ts 的
  * store watch 用例分段保证，端到端点击留给桌面交互检查）。
@@ -72,7 +72,7 @@ describe('AppearanceSettings：「界面外观」分区渲染（模板层）', (
     // 两张卡片标题。
     expect(html).toContain('title="主题"')
     expect(html).toContain('title="全局字号"')
-    // 10 个选项按钮：文档顺序 = 主题 + 全局字号，值↔文案逐个配对。
+    // 主题与字号选项按钮：文档顺序 = 主题 + 全局字号，值↔文案逐个配对。
     const expected = [
       ...THEME_OPTIONS,
       ...FONT_SIZE_OPTIONS,
@@ -88,11 +88,11 @@ describe('AppearanceSettings：「界面外观」分区渲染（模板层）', (
     expect(state.radioValues).toEqual(['dark', 'xlarge'])
   })
 
-  it('文案如实：六主题枚举、全局作用域与阅读排版迁移指引', async () => {
+  it('文案如实：七主题枚举、全局作用域与阅读排版迁移指引', async () => {
     const { pinia } = setupStores()
     const html = await renderPanel(pinia)
-    // 主题卡：枚举六主题，承诺自动保存与立即生效。
-    expect(html).toContain('浅色、深色、青绿、绯樱、水色')
+    // 主题卡：枚举七主题，承诺自动保存与立即生效。
+    expect(html).toContain('浅色、深色、森绿、青绿、绯樱、水色')
     expect(html).toContain('或跟随系统') // 仅出现在主题卡文案中，按钮只渲染裸「跟随系统」
     expect(html).toContain('自动保存')
     expect(html).toContain('界面配色会立即生效')

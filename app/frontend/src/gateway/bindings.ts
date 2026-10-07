@@ -82,8 +82,14 @@ export interface BackupSummary {
 export interface BatchSyncReport {
   cancelled: boolean
   failed: SyncFailure[]
+  handle: number
   succeeded: number
   total: number
+}
+
+export interface BatchSyncStatus {
+  progress: SyncProgress
+  report: BatchSyncReport | null
 }
 
 export interface BlockBrief {
@@ -143,10 +149,13 @@ export interface DlgLoc {
 }
 
 export interface FetchJobStatus {
+  completed: number
   error: string | null
   handle: number
+  phase: string
   questId: number
   state: string
+  total: number
 }
 
 export interface GlossDto {
@@ -315,9 +324,11 @@ export interface SyncFailure {
 }
 
 export interface SyncProgress {
+  currentJob: FetchJobStatus | null
   currentQuestTitle: string | null
   done: number
   failedCount: number
+  handle: number
   total: number
 }
 

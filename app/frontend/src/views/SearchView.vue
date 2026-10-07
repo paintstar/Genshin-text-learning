@@ -3,10 +3,27 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useReaderStore } from '@/stores/reader'
 import { useSettingsStore } from '@/stores/settings'
+import { useDownloadsStore } from '@/stores/downloads'
 import AppIcon from '@/components/AppIcon.vue'
 const router = useRouter()
 const reader = useReaderStore()
 const settings = useSettingsStore()
+const downloads = useDownloadsStore()
+const selecting = ref(false)
+const selected = ref<number[]>([])
+const selectable = computed(() => reader.searchResults.filter(q => !q.hasCachedBody).map(q => q.questId))
+const allSelected = computed(() => selectable.value.length > 0 && selectable.value.every(id => selected.value.includes(id)))
+function toggleSelected(id: number, checked: boolean) {
+  selected.value = checked ? [...new Set([...selected.value, id])] : selected.value.filter(value => value !== id)
+}
+function selectVisible(checked: boolean) {
+  if (checked) selected.value = [...new Set([...selected.value, ...selectable.value])]
+  else selected.value = selected.value.filter(id => !selectable.value.includes(id))
+}
+function closeSelection() { selecting.value = false; selected.value = [] }
+async function downloadSelected() {
+  if (await downloads.start(selected.value)) closeSelection()
+}
 const query = ref(reader.searchQuery)
 const type = ref(reader.searchType)
 const types = [
@@ -41,6 +58,11 @@ function filter(value: string) {
 }
 onMounted(() => {
   if (canSearch.value) void search()
+})
+watch(() => downloads.completedCount, () => { void search() })
+watch(() => reader.searchResults, results => {
+  const cached = new Set(results.filter(q => q.hasCachedBody).map(q => q.questId))
+  selected.value = selected.value.filter(id => !cached.has(id))
 })
 watch(canSearch, (ready, previous) => {
   if (ready && !previous) void search()
@@ -118,6 +140,16 @@ watch(canSearch, (ready, previous) => {
       >
     </div>
     <template v-else>
+      <div v-if="canSearch" class="download-selection">
+        <template v-if="selecting">
+          <n-checkbox :checked="allSelected" :disabled="!selectable.length" @update:checked="selectVisible">全选当前结果</n-checkbox>
+          <span>已选 {{ selected.length }} 项</span>
+          <n-button type="primary" size="small" :loading="downloads.starting" :disabled="!selected.length || downloads.running || downloads.starting" @click="downloadSelected">下载所选</n-button>
+          <n-button size="small" quaternary @click="closeSelection">取消选择</n-button>
+          <p class="selection-hint">每项包含全部章节。可跨搜索结果选择；下载时可以继续阅读已保存的剧情。{{ downloads.running ? '当前已有后台下载，请等待完成或取消后再下载所选任务。' : '' }}</p>
+        </template>
+        <n-button v-else secondary size="small" @click="selecting = true">批量下载</n-button>
+      </div>
       <div class="section-line">
         <h2>
           {{
@@ -137,14 +169,14 @@ watch(canSearch, (ready, previous) => {
       }}</n-alert>
       <n-spin :show="reader.searching"
         ><div v-if="reader.searchResults.length" class="quest-grid">
-          <button
+          <article
             v-for="q in reader.searchResults"
             :key="q.questId"
             class="quest-card"
-            @click="
-              router.push({ name: 'quest', params: { questId: q.questId } })
-            "
+            :class="{ selected: selected.includes(q.questId) }"
           >
+            <n-checkbox v-if="selecting" class="quest-select" :checked="selected.includes(q.questId)" :disabled="q.hasCachedBody" :aria-label="`选择下载：${titleOf(q, 'chs') || titleOf(q, 'jp')}`" @update:checked="toggleSelected(q.questId, $event)">{{ q.hasCachedBody ? '已下载' : '选择下载' }}</n-checkbox>
+            <button class="quest-card-open" @click="router.push({ name: 'quest', params: { questId: q.questId } })">
             <div class="quest-card-top">
               <span class="quest-type"
                 ><AppIcon name="spark" :size="12" />{{
@@ -162,7 +194,8 @@ watch(canSearch, (ready, previous) => {
               ><span v-if="q.chapterCount">· {{ q.chapterCount }} 个章节</span
               ><AppIcon name="arrow" :size="17" />
             </div>
-          </button>
+            </button>
+          </article>
         </div>
         <div v-else-if="!reader.searching && canSearch" class="empty-state">
           <AppIcon name="search" :size="32" />
@@ -183,3 +216,12 @@ watch(canSearch, (ready, previous) => {
     </div>
   </div>
 </template>
+
+<style scoped>
+.download-selection { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin: 18px 0; }
+.selection-hint { flex-basis: 100%; margin: 0; color: var(--muted); font-size: calc(12px * var(--ui-font-scale, 1)); line-height: 1.8; }
+.quest-card.selected { border-color: var(--green); background: var(--surface-subtle); }
+.quest-select { margin-bottom: 14px; }
+.quest-card-open { display: flex; flex-direction: column; flex: 1; width: 100%; min-width: 0; border: 0; padding: 0; background: transparent; color: inherit; text-align: left; }
+.quest-card-top, .quest-card-footer { width: 100%; flex-wrap: wrap; gap: 8px; }
+</style>

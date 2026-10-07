@@ -51,7 +51,7 @@ impl FetchScheduler {
         loop {
             // 间隔下限：距上次请求开始至少 min_interval。
             let wait = {
-                let mut last = self.last_start.lock().unwrap();
+                let last = self.last_start.lock().unwrap();
                 let wait = last
                     .map(|t| {
                         let elapsed = t.elapsed();
@@ -62,12 +62,12 @@ impl FetchScheduler {
                         }
                     })
                     .unwrap_or(None);
-                *last = Some(Instant::now());
                 wait
             };
             if let Some(w) = wait {
                 tokio::time::sleep(w).await;
             }
+            *self.last_start.lock().unwrap() = Some(Instant::now());
             match f().await {
                 Ok(v) => return Ok(v),
                 Err(e) => {
@@ -79,7 +79,7 @@ impl FetchScheduler {
                     ) && !app_err.message.contains("M0");
                     attempt += 1;
                     if retryable && attempt < 3 {
-                        let backoff = Duration::from_millis(1000u64.pow(attempt));
+                        let backoff = Duration::from_secs(1u64 << (attempt - 1));
                         if !self.fast_mode {
                             tokio::time::sleep(backoff).await;
                         }
@@ -109,6 +109,26 @@ mod tests {
             .await;
         assert!(r.is_err());
         assert_eq!(count.load(Ordering::SeqCst), 3, "最多重试 3 次");
+    }
+
+    #[tokio::test]
+    async fn maintains_interval_after_waiting() {
+        let scheduler = FetchScheduler::new(20);
+        let starts = std::sync::Arc::new(Mutex::new(Vec::new()));
+        for _ in 0..4 {
+            scheduler
+                .run(|| {
+                    starts.lock().unwrap().push(Instant::now());
+                    async { Ok::<(), AppError>(()) }
+                })
+                .await
+                .unwrap();
+        }
+        assert!(starts
+            .lock()
+            .unwrap()
+            .windows(2)
+            .all(|pair| pair[1].duration_since(pair[0]) >= Duration::from_millis(20)));
     }
 
     #[tokio::test]

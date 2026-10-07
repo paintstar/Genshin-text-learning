@@ -2,7 +2,7 @@
 //! QuestIngestor 唯一入库路径三组件（共享组件而非编排意图）+ 跨域编排
 //! （出处核对、按任务回顾组装、AI 结果沉淀）。
 
-use crate::state::{AppState, FetchJobEntry};
+use crate::state::{AppState, DOWNLOAD_STEPS};
 use kb::ingest::RawArchive;
 use kb::parser::parse_detail;
 use kb::port::FetchDetailOutcome;
@@ -19,20 +19,41 @@ use std::sync::Arc;
 /// 抓取双语详情 → 解析（A 类在此报错）→ QuestIngestor 唯一入库。
 /// 首刷（QuestOpenService）、刷新（UpdateService 阶段二）、批量首刷
 /// （BatchSyncService）共用——不存在第二条入库路径。
-pub async fn fetch_and_ingest(state: &Arc<AppState>, quest_id: i64, cancel: &AtomicBool) -> Result<IngestResult, AppError> {
+pub async fn fetch_and_ingest(
+    state: &Arc<AppState>,
+    quest_id: i64,
+    cancel: &AtomicBool,
+) -> Result<IngestResult, AppError> {
+    fetch_and_ingest_progress(state, quest_id, cancel, |_, _| {}).await
+}
+
+async fn fetch_and_ingest_progress(
+    state: &Arc<AppState>,
+    quest_id: i64,
+    cancel: &AtomicBool,
+    progress: impl Fn(u8, &str),
+) -> Result<IngestResult, AppError> {
     if cancel.load(Ordering::SeqCst) {
         return Err(AppError::cancelled("已取消"));
     }
-    let (jp_raw, chs_raw) = tokio::join!(
-        state.source.fetch_detail(quest_id, GameLang::Jp, None),
-        state.source.fetch_detail(quest_id, GameLang::Chs, None),
-    );
-    let jp_raw = jp_raw?;
-    let chs_raw = chs_raw?;
+    progress(0, "正在下载日文剧情");
+    let jp_raw = state
+        .source
+        .fetch_detail(quest_id, GameLang::Jp, None)
+        .await?;
+    crate::cancel::check(cancel)?;
+    progress(1, "正在下载中文剧情");
+    let chs_raw = state
+        .source
+        .fetch_detail(quest_id, GameLang::Chs, None)
+        .await?;
+    progress(2, "正在整理并保存剧情");
     let (jp_bytes, chs_bytes) = match (jp_raw, chs_raw) {
         (FetchDetailOutcome::Modified(a), FetchDetailOutcome::Modified(b)) => (a, b),
         (FetchDetailOutcome::NotModified, _) | (_, FetchDetailOutcome::NotModified) => {
-            return Err(AppError::data_source("首刷不应返回 304（无本地校验元数据）"));
+            return Err(AppError::data_source(
+                "首刷不应返回 304（无本地校验元数据）",
+            ));
         }
     };
     if cancel.load(Ordering::SeqCst) {
@@ -77,7 +98,11 @@ impl BootstrapService {
         if empty && !force {
             // 空库：正常继续（这正是首启）。
         } else if !force && !empty {
-            return Ok(UpdateReport { new_quests: vec![], changed: vec![], unknown_body: vec![] });
+            return Ok(UpdateReport {
+                new_quests: vec![],
+                changed: vec![],
+                unknown_body: vec![],
+            });
         }
         let (jp_idx, chs_idx) = tokio::join!(
             state.source.fetch_index(GameLang::Jp),
@@ -88,7 +113,9 @@ impl BootstrapService {
         let jp_entries = kb::parser::parse_index(&jp_idx.bytes)?;
         let chs_entries = kb::parser::parse_index(&chs_idx.bytes)?;
         // 比对先于落库（报告需对照旧本地数据）——与 UpdateService 阶段一共用。
-        let report = state.store.with_read(|c| kb::UpdateCompare::compare(c, &jp_entries))?;
+        let report = state
+            .store
+            .with_read(|c| kb::UpdateCompare::compare(c, &jp_entries))?;
         state.store.with_write(|c| {
             kb::IndexIngestor::ingest_index(c, GameLang::Jp, &jp_entries)?;
             kb::IndexIngestor::ingest_index(c, GameLang::Chs, &chs_entries)
@@ -104,29 +131,16 @@ impl BootstrapService {
 pub struct QuestOpenService;
 
 impl QuestOpenService {
-    /// 打开子任务图：已缓存直接快照；未缓存立即返回首刷句柄（不阻塞等待），
-    /// 状态经 event 通道推送；同一任务在途去重。
     pub fn open(
         state: Arc<AppState>,
         quest_id: i64,
         sub_quest_id: &str,
         emit: impl Fn(FetchJobStatus) + Send + Sync + 'static,
     ) -> Result<OpenQuestResult, AppError> {
-        // 在途去重。
-        if let Some(handle) = state.fetch_jobs.in_flight_handle(quest_id) {
-            let job = state.fetch_jobs.get(handle).unwrap();
-            return Ok(OpenQuestResult {
-                cached: false,
-                snapshot: None,
-                job: Some(FetchJobStatus {
-                    handle,
-                    quest_id,
-                    state: job.state,
-                    error: job.error,
-                }),
-            });
-        }
-        if state.store.with_read(|c| kb::query::quest_has_body(c, quest_id))? {
+        if state
+            .store
+            .with_read(|c| kb::query::quest_has_body(c, quest_id))?
+        {
             let snapshot = state.store.with_read(|c| {
                 kb::GraphQueryService::graph_snapshot(c, quest_id, sub_quest_id, GameLang::Jp)
             })?;
@@ -136,41 +150,90 @@ impl QuestOpenService {
                 job: None,
             });
         }
-        // miss：创建句柄 + spawn 抓取任务。
-        let handle = state.fetch_jobs.next_handle();
-        state.fetch_jobs.create(handle, quest_id);
-        let flag = state.cancels.register(handle);
-        let sub = sub_quest_id.to_string();
-        let emit = Arc::new(emit);
-        let st = state.clone();
-        tokio::spawn(async move {
-            st.fetch_jobs.update(handle, FetchJobState::Fetching, None);
-            emit(FetchJobStatus { handle, quest_id, state: FetchJobState::Fetching, error: None });
-            match fetch_and_ingest(&st, quest_id, &flag).await {
-                Ok(_res) => {
-                    st.fetch_jobs.update(handle, FetchJobState::Done, None);
-                    emit(FetchJobStatus { handle, quest_id, state: FetchJobState::Done, error: None });
-                }
-                Err(e) => {
-                    let cancelled = e.kind == AppErrorKind::Cancelled;
-                    let s = if cancelled { FetchJobState::Cancelled } else { FetchJobState::Failed };
-                    st.fetch_jobs.update(handle, s, Some(e.message.clone()));
-                    emit(FetchJobStatus { handle, quest_id, state: s, error: Some(e.message) });
-                }
-            }
-            st.cancels.unregister(handle);
-            let _ = sub;
-        });
+        let job = Self::download(state, quest_id, Arc::new(emit))?;
         Ok(OpenQuestResult {
             cached: false,
             snapshot: None,
-            job: Some(FetchJobStatus {
-                handle,
-                quest_id,
-                state: FetchJobState::Queued,
-                error: None,
-            }),
+            job: Some(job),
         })
+    }
+
+    fn download(
+        state: Arc<AppState>,
+        quest_id: i64,
+        emit: Arc<dyn Fn(FetchJobStatus) + Send + Sync>,
+    ) -> Result<FetchJobStatus, AppError> {
+        if state
+            .store
+            .with_read(|c| kb::query::load_summary(c, quest_id))?
+            .is_none()
+        {
+            return Err(AppError::invalid_param("任务不存在，请先更新任务目录"));
+        }
+        let candidate = state.request_counter.fetch_add(1, Ordering::SeqCst);
+        let flag = state.cancels.register(candidate);
+        let (job, created) = state.fetch_jobs.claim(candidate, quest_id);
+        if !created {
+            state.cancels.unregister(candidate);
+            return Ok(job);
+        }
+        let handle = job.handle;
+        let initial = job.clone();
+        tokio::spawn(async move {
+            let progress = |completed, phase: &str| {
+                let status = FetchJobStatus {
+                    completed,
+                    phase: phase.into(),
+                    state: FetchJobState::Fetching,
+                    ..initial.clone()
+                };
+                state.fetch_jobs.update(status.clone());
+                emit(status);
+            };
+            let fetch = async {
+                // 登记作业之前可能已有另一条下载刚刚落库，避免重复获取。
+                if state
+                    .store
+                    .with_read(|c| kb::query::quest_has_body(c, quest_id))?
+                {
+                    return Ok(());
+                }
+                fetch_and_ingest_progress(&state, quest_id, &flag, progress)
+                    .await
+                    .map(|_| ())
+            };
+            let result = tokio::select! {
+                biased;
+                _ = state.cancels.cancelled(handle) => Err(AppError::cancelled("下载已取消")),
+                result = fetch => result,
+            };
+            let mut status = state.fetch_jobs.get(handle).unwrap_or(initial);
+            match result {
+                Ok(()) => {
+                    status.state = FetchJobState::Done;
+                    status.completed = DOWNLOAD_STEPS;
+                    status.phase = "下载完成".into();
+                }
+                Err(e) => {
+                    status.state = if e.kind == AppErrorKind::Cancelled {
+                        FetchJobState::Cancelled
+                    } else {
+                        FetchJobState::Failed
+                    };
+                    status.phase = if e.kind == AppErrorKind::Cancelled {
+                        "已取消"
+                    } else {
+                        "下载失败"
+                    }
+                    .into();
+                    status.error = Some(e.message);
+                }
+            }
+            state.fetch_jobs.update(status.clone());
+            emit(status);
+            state.cancels.unregister(handle);
+        });
+        Ok(job)
     }
 }
 
@@ -198,8 +261,12 @@ impl UpdateService {
         if cancel.load(Ordering::SeqCst) {
             return Err(AppError::cancelled("已取消"));
         }
-        let jp_meta = state.store.with_read(|c| kb::query::raw_meta(c, quest_id, GameLang::Jp))?;
-        let chs_meta = state.store.with_read(|c| kb::query::raw_meta(c, quest_id, GameLang::Chs))?;
+        let jp_meta = state
+            .store
+            .with_read(|c| kb::query::raw_meta(c, quest_id, GameLang::Jp))?;
+        let chs_meta = state
+            .store
+            .with_read(|c| kb::query::raw_meta(c, quest_id, GameLang::Chs))?;
         let (jp_v, chs_v) = (
             jp_meta.as_ref().map(|(v, _, _)| v.clone()),
             chs_meta.as_ref().map(|(v, _, _)| v.clone()),
@@ -212,15 +279,15 @@ impl UpdateService {
         // 组装两侧「新字节」：NotModified 侧从归档解压重放。
         let jp_bytes = match &jp_out {
             FetchDetailOutcome::Modified(r) => Some(r.bytes.clone()),
-            FetchDetailOutcome::NotModified => {
-                state.store.with_read(|c| kb::query::raw_bytes(c, quest_id, GameLang::Jp))?
-            }
+            FetchDetailOutcome::NotModified => state
+                .store
+                .with_read(|c| kb::query::raw_bytes(c, quest_id, GameLang::Jp))?,
         };
         let chs_bytes = match &chs_out {
             FetchDetailOutcome::Modified(r) => Some(r.bytes.clone()),
-            FetchDetailOutcome::NotModified => {
-                state.store.with_read(|c| kb::query::raw_bytes(c, quest_id, GameLang::Chs))?
-            }
+            FetchDetailOutcome::NotModified => state
+                .store
+                .with_read(|c| kb::query::raw_bytes(c, quest_id, GameLang::Chs))?,
         };
         let (Some(jp_bytes), Some(chs_bytes)) = (jp_bytes, chs_bytes) else {
             return Err(AppError::integrity("归档缺失，无法刷新"));
@@ -230,16 +297,23 @@ impl UpdateService {
         let chs_parsed = parse_detail(&chs_bytes)?;
         let new_jp_hash = kb::hash::content_hash(&jp_parsed);
         let new_chs_hash = kb::hash::content_hash(&chs_parsed);
-        let old_hashes = (jp_meta.as_ref().map(|(_, h, _)| h.clone()), chs_meta.as_ref().map(|(_, h, _)| h.clone()));
+        let old_hashes = (
+            jp_meta.as_ref().map(|(_, h, _)| h.clone()),
+            chs_meta.as_ref().map(|(_, h, _)| h.clone()),
+        );
         let unchanged = old_hashes.0.as_deref() == Some(new_jp_hash.as_str())
             && old_hashes.1.as_deref() == Some(new_chs_hash.as_str());
         if unchanged {
-            state.store.with_write(|c| kb::query::touch_raw_fetched_at(c, quest_id, now()))?;
+            state
+                .store
+                .with_write(|c| kb::query::touch_raw_fetched_at(c, quest_id, now()))?;
             return Ok(RefreshOutcome {
                 quest_id,
                 outcome: "unchanged".into(),
                 align_status: Some(
-                    state.store.with_read(|c| kb::query::load_align_status(c, quest_id))?,
+                    state
+                        .store
+                        .with_read(|c| kb::query::load_align_status(c, quest_id))?,
                 ),
                 error: None,
             });
@@ -259,11 +333,17 @@ impl UpdateService {
                 quest_id,
                 (
                     &jp_parsed,
-                    &RawArchive { bytes: jp_bytes.clone(), validator: jp_validator },
+                    &RawArchive {
+                        bytes: jp_bytes.clone(),
+                        validator: jp_validator,
+                    },
                 ),
                 (
                     &chs_parsed,
-                    &RawArchive { bytes: chs_bytes.clone(), validator: chs_validator },
+                    &RawArchive {
+                        bytes: chs_bytes.clone(),
+                        validator: chs_validator,
+                    },
                 ),
             )
         })?;
@@ -280,12 +360,16 @@ impl UpdateService {
 
 /// 出处核对编排（架构 4.8）：kb 取新正文行 → study 核对器判定 → 标记。
 fn revalidate_provenance(state: &Arc<AppState>, quest_id: i64) -> Result<usize, AppError> {
-    let notes = state.store.with_read(|c| study::NoteRepository::list_fresh_for_quest(c, quest_id))?;
+    let notes = state
+        .store
+        .with_read(|c| study::NoteRepository::list_fresh_for_quest(c, quest_id))?;
     if notes.is_empty() {
         return Ok(0);
     }
     let keys: Vec<shared::OptRef> = notes.iter().map(|n| n.opt_ref.clone()).collect();
-    let current = state.store.with_read(|c| kb::ContentReadService::read_text_rows(c, quest_id, &keys))?;
+    let current = state
+        .store
+        .with_read(|c| kb::ContentReadService::read_text_rows(c, quest_id, &keys))?;
     let current_rows: Vec<study::CurrentTextRow> = current
         .into_iter()
         .map(|r| study::CurrentTextRow {
@@ -303,7 +387,9 @@ fn revalidate_provenance(state: &Arc<AppState>, quest_id: i64) -> Result<usize, 
     let mut marked = 0;
     for (id, reason) in results {
         if let Some(reason) = reason {
-            state.store.with_write(|c| study::NoteRepository::mark_stale(c, id, reason.as_str()))?;
+            state
+                .store
+                .with_write(|c| study::NoteRepository::mark_stale(c, id, reason.as_str()))?;
             marked += 1;
         }
     }
@@ -317,56 +403,168 @@ fn revalidate_provenance(state: &Arc<AppState>, quest_id: i64) -> Result<usize, 
 pub struct BatchSyncService;
 
 impl BatchSyncService {
-    /// 枚举全部未缓存任务 → 幂等过滤 → 逐任务唯一路径入库 → 进度事件 →
-    /// 失败清单（单点失败不中断批量）→ 整体取消。
-    pub async fn run(
+    pub fn start(
         state: Arc<AppState>,
-        _job_id: u64,
-        cancel: Arc<AtomicBool>,
-        emit: impl Fn(SyncProgress) + Send + Sync + 'static,
-    ) -> BatchSyncReport {
-        let emit = Arc::new(emit);
-        let ids = match state.store.with_read(|c| kb::query::list_uncached_quest_ids(c)) {
-            Ok(ids) => ids,
-            Err(e) => {
-                return BatchSyncReport {
-                    total: 0,
-                    succeeded: 0,
-                    failed: vec![SyncFailure { quest_id: 0, title: None, reason: e.message }],
-                    cancelled: false,
+        selected: Option<Vec<i64>>,
+        emit_progress: impl Fn(SyncProgress) + Send + Sync + 'static,
+        emit_done: impl Fn(BatchSyncReport) + Send + Sync + 'static,
+        emit_job: impl Fn(FetchJobStatus) + Send + Sync + 'static,
+    ) -> Result<u64, AppError> {
+        state.gate.check()?;
+        let ids = state.store.with_read(|c| match selected {
+            Some(ids) => {
+                if ids.is_empty() {
+                    return Err(AppError::invalid_param("请先选择要下载的任务"));
                 }
+                let mut seen = std::collections::HashSet::new();
+                let mut pending = Vec::new();
+                for id in ids {
+                    if !seen.insert(id) {
+                        continue;
+                    }
+                    let summary = kb::query::load_summary(c, id)?.ok_or_else(|| {
+                        AppError::invalid_param("所选任务已不存在，请更新任务目录")
+                    })?;
+                    if !summary.has_cached_body {
+                        pending.push(id);
+                    }
+                }
+                Ok(pending)
             }
+            None => kb::query::list_uncached_quest_ids(c),
+        })?;
+        let handle = state.request_counter.fetch_add(1, Ordering::SeqCst);
+        let progress = SyncProgress {
+            handle,
+            done: 0,
+            total: ids.len() as i64,
+            current_quest_title: None,
+            failed_count: 0,
+            current_job: None,
         };
-        let total = ids.len() as i64;
-        let mut done = 0i64;
-        let mut failed: Vec<SyncFailure> = Vec::new();
+        {
+            let mut current = state.batch_sync.lock().unwrap();
+            if current.as_ref().is_some_and(|s| s.report.is_none()) {
+                return Err(AppError::invalid_param(
+                    "已有后台下载，请等待完成或取消后再开始",
+                ));
+            }
+            *current = Some(BatchSyncStatus {
+                progress: progress.clone(),
+                report: None,
+            });
+        }
+        state.cancels.register(handle);
+        emit_progress(progress.clone());
+        tokio::spawn(async move {
+            let report = Self::run(
+                state.clone(),
+                ids,
+                progress,
+                emit_progress,
+                Arc::new(emit_job),
+            )
+            .await;
+            if let Some(status) = state.batch_sync.lock().unwrap().as_mut() {
+                status.report = Some(report.clone());
+            }
+            emit_done(report);
+            state.cancels.unregister(handle);
+        });
+        Ok(handle)
+    }
+
+    async fn run(
+        state: Arc<AppState>,
+        ids: Vec<i64>,
+        mut progress: SyncProgress,
+        emit: impl Fn(SyncProgress) + Send + Sync,
+        emit_job: Arc<dyn Fn(FetchJobStatus) + Send + Sync>,
+    ) -> BatchSyncReport {
+        let handle = progress.handle;
+        let mut report = BatchSyncReport {
+            handle,
+            total: progress.total,
+            succeeded: 0,
+            failed: vec![],
+            cancelled: false,
+        };
+        let publish = |progress: &SyncProgress| {
+            if let Some(status) = state.batch_sync.lock().unwrap().as_mut() {
+                status.progress = progress.clone();
+            }
+            emit(progress.clone());
+        };
         for quest_id in ids {
-            if cancel.load(Ordering::SeqCst) {
-                emit(SyncProgress { done, total, current_quest_title: None, failed_count: failed.len() as i64 });
-                return BatchSyncReport { total, succeeded: done, failed, cancelled: true };
+            // cancelled() 在 select 中还会处理下载期间的取消。
+            if state.cancels.is_cancelled(handle) {
+                report.cancelled = true;
+                break;
             }
             let title = state
                 .store
                 .with_read(|c| kb::query::load_titles_for(c, quest_id))
                 .ok()
                 .and_then(|ts| ts.into_iter().find(|t| t.lang == "chs").map(|t| t.text));
-            emit(SyncProgress {
-                done,
-                total,
-                current_quest_title: title.clone(),
-                failed_count: failed.len() as i64,
-            });
-            match fetch_and_ingest(&state, quest_id, &cancel).await {
-                Ok(_) => done += 1,
-                Err(e) => {
-                    if e.kind == AppErrorKind::Cancelled {
-                        return BatchSyncReport { total, succeeded: done, failed, cancelled: true };
+            progress.current_quest_title = title.clone();
+            progress.current_job = None;
+            publish(&progress);
+            let result = match QuestOpenService::download(state.clone(), quest_id, emit_job.clone())
+            {
+                Err(e) => Err(e),
+                Ok(job) => {
+                    let mut updates = state.fetch_jobs.subscribe(job.handle).unwrap();
+                    loop {
+                        let status = updates.borrow_and_update().clone();
+                        progress.current_job = Some(status.clone());
+                        publish(&progress);
+                        match status.state {
+                            FetchJobState::Done => break Ok(()),
+                            FetchJobState::Failed | FetchJobState::Cancelled => {
+                                break Err(AppError::data_source(
+                                    status.error.unwrap_or_else(|| "下载失败".into()),
+                                ));
+                            }
+                            _ => {}
+                        }
+                        tokio::select! {
+                            biased;
+                            _ = state.cancels.cancelled(handle) => {
+                                state.cancels.cancel(job.handle);
+                                // 等当前作业退出后再开放新队列，避免马上重试时复用将取消的旧作业。
+                                while matches!(updates.borrow().state, FetchJobState::Queued | FetchJobState::Fetching) {
+                                    if updates.changed().await.is_err() { break; }
+                                }
+                                report.cancelled = true;
+                                break Err(AppError::cancelled("下载已取消"));
+                            }
+                            changed = updates.changed() => {
+                                if changed.is_err() { break Err(AppError::internal("下载状态连接已关闭")); }
+                            }
+                        }
                     }
-                    failed.push(SyncFailure { quest_id, title, reason: e.message });
                 }
+            };
+            if report.cancelled {
+                break;
             }
+            match result {
+                Ok(()) => report.succeeded += 1,
+                Err(e) => report.failed.push(SyncFailure {
+                    quest_id,
+                    title,
+                    reason: e.message,
+                }),
+            }
+            progress.done = report.succeeded;
+            progress.failed_count = report.failed.len() as i64;
+            progress.current_job = None;
+            publish(&progress);
         }
-        BatchSyncReport { total, succeeded: done, failed, cancelled: false }
+        progress.current_job = None;
+        progress.current_quest_title = None;
+        publish(&progress);
+        report
     }
 }
 
@@ -375,7 +573,9 @@ impl BatchSyncService {
 // ---------------------------------------------------------------------------
 
 pub fn notes_by_task(state: &Arc<AppState>, ui_lang: GameLang) -> Result<NotesByTask, AppError> {
-    let notes = state.store.with_read(|c| study::NoteRepository::list_recent(c, 2000))?;
+    let notes = state
+        .store
+        .with_read(|c| study::NoteRepository::list_recent(c, 2000))?;
     let quest_ids: Vec<i64> = notes.iter().map(|n| n.opt_ref.quest_id).collect();
     let titles = state
         .store
@@ -400,14 +600,4 @@ fn now() -> i64 {
         .duration_since(std::time::UNIX_EPOCH)
         .map(|d| d.as_secs() as i64)
         .unwrap_or(0)
-}
-
-// 测试辅助：FetchJobEntry 构造（command 层映射用）。
-pub fn job_status(e: &FetchJobEntry) -> FetchJobStatus {
-    FetchJobStatus {
-        handle: e.handle,
-        quest_id: e.quest_id,
-        state: e.state,
-        error: e.error.clone(),
-    }
 }

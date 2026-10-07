@@ -3,10 +3,12 @@ import { createPinia, setActivePinia } from 'pinia'
 import { setGateway } from '@/gateway/provider'
 import { MockGateway } from '@/gateway/mock'
 import { useReaderStore } from './reader'
+import { useDownloadsStore } from './downloads'
 import type { FetchJobStatus } from '@/gateway/bindings'
 beforeEach(() => setActivePinia(createPinia()))
 afterEach(() => {
   useReaderStore().closeReader()
+  useDownloadsStore().disconnect()
   setGateway(null)
 })
 it('抓取在 command 返回前完成，仍会加载正文且不遗留监听器', async () => {
@@ -21,7 +23,7 @@ it('抓取在 command 返回前完成，仍会加载正文且不遗留监听器'
   let calls = 0
   gateway.openSubQuestGraph = vi.fn(async () => {
     if (++calls === 1) {
-      listener({ handle: 7, questId: 1702, state: 'done', error: null })
+      listener({ handle: 7, questId: 1702, state: 'done', error: null, completed: 3, total: 3, phase: '下载完成' })
       return {
         cached: false,
         snapshot: null,
@@ -29,6 +31,7 @@ it('抓取在 command 返回前完成，仍会加载正文且不遗留监听器'
           handle: 7,
           questId: 1702,
           state: 'queued' as const,
+          completed: 0, total: 3, phase: '等待下载',
           error: null,
         },
       }

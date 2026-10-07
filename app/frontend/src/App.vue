@@ -4,6 +4,8 @@ import { useRoute } from 'vue-router'
 import { zhCN, dateZhCN } from 'naive-ui'
 import { useAiStore } from '@/stores/ai'
 import { useSettingsStore } from '@/stores/settings'
+import { useDownloadsStore } from '@/stores/downloads'
+import DownloadPanel from '@/components/DownloadPanel.vue'
 import { usePreferencesStore } from '@/stores/preferences'
 import { initThemeController } from '@/modules/theme/themeController'
 import { initUiFontController } from '@/modules/ui/uiFontController'
@@ -16,6 +18,8 @@ import { isPreview } from './gateway/provider'
 const route = useRoute()
 const ai = useAiStore()
 const settings = useSettingsStore()
+const downloads = useDownloadsStore()
+void downloads.refresh()
 const reader = useReaderStore()
 const preferences = usePreferencesStore()
 const themeController = initThemeController(preferences)
@@ -26,6 +30,7 @@ onUnmounted(() => {
   themeController.dispose()
   uiFontController.dispose()
   preferences.stopPersist()
+  downloads.disconnect()
 })
 const preferencesReady = ref(false)
 const showAi = ref(false)
@@ -130,6 +135,11 @@ watch(
               ></router-link
             >
           </nav>
+          <div v-if="downloads.running" class="sidebar-download" aria-label="后台下载进度">
+            <span>后台下载 · {{ downloads.progress!.done + downloads.progress!.failedCount }} / {{ downloads.progress!.total }}</span>
+            <n-progress type="line" :percentage="downloads.percentage" :show-indicator="false" processing />
+            <small :title="downloads.progress!.currentQuestTitle || ''">{{ downloads.progress!.currentQuestTitle || '正在准备…' }}</small>
+          </div>
           <div class="sidebar-bottom">
             <div class="journey-note">
               <AppIcon name="leaf" :size="24" />
@@ -178,6 +188,7 @@ watch(
               部分外观或排版设置未能保存，当前窗口仍会生效。
               <n-button size="small" @click="preferences.retrySave()">重试保存</n-button>
             </n-alert>
+            <DownloadPanel />
             <router-view />
           </main>
         </div>

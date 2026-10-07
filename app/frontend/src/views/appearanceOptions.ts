@@ -19,7 +19,8 @@ export interface PreferenceOption<T extends string> {
 export const THEME_LABELS: Record<ThemePreference, string> = {
   system: '跟随系统',
   light: '浅色',
-  dark: '深色',
+  black: '深色',
+  dark: '森绿',
   green: '青绿',
   sakura: '绯樱',
   aqua: '水色',

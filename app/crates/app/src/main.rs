@@ -35,6 +35,16 @@ fn main() {
                 source_override: None,
             })
             .map_err(|e| Box::new(e) as Box<dyn std::error::Error>)?;
+            if let Some(config) = app.config().app.windows.first() {
+                if let Some(window) = app.get_webview_window(&config.label) {
+                    if let Ok(preferences) = app_lib::window_state::WindowPreferences::install(
+                        window,
+                        state.store.clone(),
+                    ) {
+                        app.manage(preferences);
+                    }
+                }
+            }
             app.manage(state);
             Ok(())
         })
@@ -53,6 +63,7 @@ fn main() {
             app_lib::commands::update_check,
             app_lib::commands::update_refresh,
             app_lib::commands::batch_sync_start,
+            app_lib::commands::batch_sync_status,
             app_lib::commands::batch_sync_cancel,
             app_lib::commands::dict_search,
             app_lib::commands::dict_term_add,
@@ -90,6 +101,15 @@ fn main() {
             app_lib::commands::app_init,
             app_lib::commands::read_text_rows,
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application")
+        .run(|app, event| {
+            if matches!(event, tauri::RunEvent::ExitRequested { .. }) {
+                if let Some(preferences) =
+                    app.try_state::<app_lib::window_state::WindowPreferences>()
+                {
+                    preferences.save();
+                }
+            }
+        });
 }

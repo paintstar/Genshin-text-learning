@@ -4,74 +4,81 @@ use crate::cancel::CancelRegistry;
 use ai::profile::AiProfileRow;
 use fetcher::{FetchScheduler, TermsGate, YattaClient};
 use kb::QuestSource;
+use shared::dto::{BatchSyncStatus, FetchJobState, FetchJobStatus};
 use shared::AppError;
-use shared::dto::FetchJobState;
 use std::collections::HashMap;
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::AtomicU64;
 use std::sync::{Arc, Mutex};
 use store::{SecretVault, Store};
 
-/// 首刷任务句柄表（同任务在途去重）。
-#[derive(Clone)]
-pub struct FetchJobEntry {
-    pub handle: u64,
-    pub quest_id: i64,
-    pub state: FetchJobState,
-    pub error: Option<String>,
+// 日文、中文、保存入库三个可确认完成的阶段。
+pub const DOWNLOAD_STEPS: u8 = 3;
+
+#[derive(Default)]
+struct FetchJobTable {
+    jobs: HashMap<u64, tokio::sync::watch::Sender<FetchJobStatus>>,
+    in_flight: HashMap<i64, u64>,
 }
 
+#[derive(Default)]
 pub struct FetchJobs {
-    counter: AtomicU64,
-    pub jobs: Mutex<HashMap<u64, FetchJobEntry>>,
-    /// quest_id → 在途句柄（重复打开返回既有句柄）。
-    pub in_flight: Mutex<HashMap<i64, u64>>,
-}
-
-impl Default for FetchJobs {
-    fn default() -> Self {
-        Self {
-            counter: AtomicU64::new(1),
-            jobs: Mutex::new(HashMap::new()),
-            in_flight: Mutex::new(HashMap::new()),
-        }
-    }
+    table: Mutex<FetchJobTable>,
 }
 
 impl FetchJobs {
-    pub fn next_handle(&self) -> u64 {
-        self.counter.fetch_add(1, Ordering::SeqCst)
-    }
-
-    pub fn create(&self, handle: u64, quest_id: i64) {
-        self.jobs.lock().unwrap().insert(
+    /// 同一任务的查找和登记在同一把锁内，阅读和批量下载共用一个作业。
+    pub fn claim(&self, handle: u64, quest_id: i64) -> (FetchJobStatus, bool) {
+        let mut table = self.table.lock().unwrap();
+        if let Some(existing) = table.in_flight.get(&quest_id) {
+            return (table.jobs[existing].borrow().clone(), false);
+        }
+        let status = FetchJobStatus {
             handle,
-            FetchJobEntry {
-                handle,
-                quest_id,
-                state: FetchJobState::Queued,
-                error: None,
-            },
-        );
-        self.in_flight.lock().unwrap().insert(quest_id, handle);
+            quest_id,
+            state: FetchJobState::Queued,
+            error: None,
+            completed: 0,
+            total: DOWNLOAD_STEPS,
+            phase: "等待下载".into(),
+        };
+        let (sender, _) = tokio::sync::watch::channel(status.clone());
+        table.jobs.insert(handle, sender);
+        table.in_flight.insert(quest_id, handle);
+        (status, true)
     }
 
-    pub fn update(&self, handle: u64, state: FetchJobState, error: Option<String>) {
-        if let Some(job) = self.jobs.lock().unwrap().get_mut(&handle) {
-            job.state = state;
-            job.error = error;
-            if matches!(state, FetchJobState::Done | FetchJobState::Failed | FetchJobState::Cancelled) {
-                self.in_flight.lock().unwrap().remove(&job.quest_id);
+    pub fn update(&self, status: FetchJobStatus) {
+        let mut table = self.table.lock().unwrap();
+        if matches!(
+            status.state,
+            FetchJobState::Done | FetchJobState::Failed | FetchJobState::Cancelled
+        ) {
+            if table.in_flight.get(&status.quest_id) == Some(&status.handle) {
+                table.in_flight.remove(&status.quest_id);
             }
+        }
+        if let Some(sender) = table.jobs.get(&status.handle) {
+            sender.send_replace(status);
         }
     }
 
-    pub fn get(&self, handle: u64) -> Option<FetchJobEntry> {
-        self.jobs.lock().unwrap().get(&handle).cloned()
+    pub fn get(&self, handle: u64) -> Option<FetchJobStatus> {
+        self.table
+            .lock()
+            .unwrap()
+            .jobs
+            .get(&handle)
+            .map(|s| s.borrow().clone())
     }
 
-    pub fn in_flight_handle(&self, quest_id: i64) -> Option<u64> {
-        self.in_flight.lock().unwrap().get(&quest_id).copied()
+    pub fn subscribe(&self, handle: u64) -> Option<tokio::sync::watch::Receiver<FetchJobStatus>> {
+        self.table
+            .lock()
+            .unwrap()
+            .jobs
+            .get(&handle)
+            .map(|s| s.subscribe())
     }
 }
 
@@ -85,6 +92,7 @@ pub struct AppState {
     pub ai_client: Arc<dyn ai::AiClient>,
     pub ai_guard: Arc<ai::CliIsolationGuard>,
     pub fetch_jobs: FetchJobs,
+    pub batch_sync: Mutex<Option<BatchSyncStatus>>,
     pub cancels: CancelRegistry,
     pub request_counter: AtomicU64,
     pub dict_db_path: PathBuf,
@@ -95,11 +103,15 @@ pub struct AppState {
 impl AppState {
     /// 当前生效 AI 配置（无 → 未配置三态）。
     pub fn active_profile(&self) -> Result<Option<AiProfileRow>, AppError> {
-        self.store.with_read(|c| ai::AiProfileRegistry::get_active(c))
+        self.store
+            .with_read(|c| ai::AiProfileRegistry::get_active(c))
     }
 
     pub fn secret_for(&self, profile: &AiProfileRow) -> Option<String> {
-        self.secret.get("genshin-lang-learning", &profile.name).ok().flatten()
+        self.secret
+            .get("genshin-lang-learning", &profile.name)
+            .ok()
+            .flatten()
     }
 }
 

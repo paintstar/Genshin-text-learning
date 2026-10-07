@@ -186,6 +186,9 @@ pub struct FetchJobStatus {
     pub quest_id: i64,
     pub state: FetchJobState,
     pub error: Option<String>,
+    pub completed: u8,
+    pub total: u8,
+    pub phase: String,
 }
 
 /// 打开未缓存任务：立即返回句柄（不阻塞），状态经 event 通道推送。
@@ -224,19 +227,30 @@ pub struct RefreshOutcome {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SyncProgress {
+    pub handle: u64,
     pub done: i64,
     pub total: i64,
     pub current_quest_title: Option<String>,
     pub failed_count: i64,
+    pub current_job: Option<FetchJobStatus>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct BatchSyncReport {
+    pub handle: u64,
     pub total: i64,
     pub succeeded: i64,
     pub failed: Vec<SyncFailure>,
     pub cancelled: bool,
+}
+
+/// 当前后台下载的快照，切换页面或刷新界面后可以恢复进度。
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BatchSyncStatus {
+    pub progress: SyncProgress,
+    pub report: Option<BatchSyncReport>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

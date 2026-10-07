@@ -68,6 +68,33 @@ html.dark {
   --decor-soft: #455c4e;
   --card-shadow: 0 5px 18px rgba(0, 0, 0, 0.5);
 }
+html.theme-black {
+  color-scheme: dark;
+  --ink: #f0f6fc;
+  --ink-deep: #f0f6fc;
+  --text-soft: #b1bac4;
+  --muted: #9198a1;
+  --text-faint: #8b949e;
+  --green: #4493f8;
+  --green-strong: #79c0ff;
+  --focus-ring: #1f6feb;
+  --focus-glow: #15243a;
+  --line: #3d444d;
+  --line-soft: #252c36;
+  --paper: #151b23;
+  --paper-soft: #010409;
+  --paper-dim: #1c2128;
+  --bg: #0d1117;
+  --surface-hover: #212830;
+  --surface-active: #172b45;
+  --surface-tint: #151b23;
+  --surface-subtle: #1c2128;
+  --selection-bg: #264f78;
+  --selection-ink: #f0f6fc;
+  --decor: #59636e;
+  --decor-soft: #3d444d;
+  --card-shadow: 0 5px 18px rgba(0, 0, 0, 0.5);
+}
 html.theme-green {
   color-scheme: light;
   /* 文本层级 */
@@ -214,6 +241,7 @@ a:focus-visible {
   padding: 32px 18px 18px;
   z-index: 10;
   overflow-y: auto;
+  overflow-x: hidden;
 }
 .sidebar > * {
   flex-shrink: 0;
@@ -228,6 +256,12 @@ a:focus-visible {
   letter-spacing: 1px;
   margin: 0 8px 48px;
 }
+.brand > span:last-child,
+.nav-item > span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.nav-item > svg { flex-shrink: 0; }
 .brand small {
   display: block;
   font-size: calc(8px * var(--ui-font-scale, 1));
@@ -277,6 +311,25 @@ a:focus-visible {
   color: var(--green);
   font-weight: 600;
 }
+.sidebar-download {
+  min-width: 0;
+  padding: 14px 12px;
+  margin-top: 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface-subtle);
+  color: var(--text-soft);
+  font-size: calc(12px * var(--ui-font-scale, 1));
+}
+.sidebar-download small {
+  display: block;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: var(--muted);
+  margin-top: 6px;
+}
+.sidebar-download .n-progress { margin-top: 8px; }
 .sidebar-bottom {
   margin-top: auto;
   padding-top: 48px;
@@ -322,6 +375,7 @@ a:focus-visible {
   margin-bottom: 0;
 }
 .main-shell {
+  min-width: 0;
   margin-left: 230px;
 }
 .topbar {
@@ -377,6 +431,8 @@ a:focus-visible {
   margin-bottom: 20px;
 }
 .page-heading {
+  flex-wrap: wrap;
+  min-width: 0;
   margin-bottom: 27px;
   display: flex;
   justify-content: space-between;
@@ -391,6 +447,7 @@ a:focus-visible {
   margin-bottom: 10px;
 }
 h1 {
+  overflow-wrap: anywhere;
   font-size: calc(28px * var(--ui-font-scale, 1));
   font-weight: 600;
   letter-spacing: 1px;
@@ -518,6 +575,8 @@ h1 {
   background: var(--surface-hover);
 }
 .section-line {
+  gap: 10px;
+  flex-wrap: wrap;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -538,6 +597,8 @@ h1 {
   gap: 14px;
 }
 .quest-card {
+  min-width: 0;
+  overflow-wrap: anywhere;
   text-align: left;
   display: flex;
   flex-direction: column;
@@ -819,6 +880,8 @@ h1 {
     margin: 0 0 30px;
     justify-content: center;
   }
+  .sidebar-download > span,
+  .sidebar-download > small,
   .brand > span:last-child,
   .nav-item span,
   .sidebar-label,

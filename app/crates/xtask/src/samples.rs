@@ -24,7 +24,10 @@ pub fn samples() -> Vec<(&'static str, Value)> {
             "block_brief",
             json!({ "subQuestId": "0", "stepId": "0", "treeNo": 0, "initDialogId": "101", "treeOrder": 0 }),
         ),
-        ("block_key", json!({ "subQuestId": "0", "stepId": "0", "treeNo": 0 })),
+        (
+            "block_key",
+            json!({ "subQuestId": "0", "stepId": "0", "treeNo": 0 }),
+        ),
         (
             "quest_overview",
             json!({ "summary": null, "subs": [{ "subQuestId": "0", "sort": 0, "titles": [{ "lang": "jp", "text": "x" }], "descs": [], "hasProgress": false }],
@@ -66,36 +69,78 @@ pub fn samples() -> Vec<(&'static str, Value)> {
         ),
         (
             "fetch_job_status",
-            json!({ "handle": 1, "questId": 1702, "state": "fetching", "error": null }),
+            serde_json::to_value(shared::dto::FetchJobStatus {
+                handle: 1,
+                quest_id: 1702,
+                state: shared::dto::FetchJobState::Fetching,
+                error: None,
+                completed: 0,
+                total: 3,
+                phase: "正在下载日文剧情".into(),
+            })
+            .unwrap(),
         ),
         (
             "open_quest_result",
             json!({ "cached": false, "snapshot": null, "job": null }),
         ),
-        ("update_report", json!({ "newQuests": [{ "questId": 1, "questType": null, "chapterNum": null, "route": null, "chapterCount": 0, "titles": [], "hasCachedBody": false, "alignStatus": null }],
+        (
+            "update_report",
+            json!({ "newQuests": [{ "questId": 1, "questType": null, "chapterNum": null, "route": null, "chapterCount": 0, "titles": [], "hasCachedBody": false, "alignStatus": null }],
                 "changed": [{ "questId": 1, "questType": null, "chapterNum": null, "route": null, "chapterCount": 0, "titles": [], "hasCachedBody": false, "alignStatus": null }],
-                "unknownBody": [{ "questId": 1, "questType": null, "chapterNum": null, "route": null, "chapterCount": 0, "titles": [], "hasCachedBody": false, "alignStatus": null }] })),
+                "unknownBody": [{ "questId": 1, "questType": null, "chapterNum": null, "route": null, "chapterCount": 0, "titles": [], "hasCachedBody": false, "alignStatus": null }] }),
+        ),
         (
             "refresh_outcome",
             json!({ "questId": 1702, "outcome": "rebuilt", "alignStatus": "ok", "error": null }),
         ),
         (
             "sync_progress",
-            json!({ "done": 0, "total": 0, "currentQuestTitle": null, "failedCount": 0 }),
+            serde_json::to_value(shared::dto::SyncProgress {
+                handle: 1,
+                done: 0,
+                total: 0,
+                current_quest_title: None,
+                failed_count: 0,
+                current_job: None,
+            })
+            .unwrap(),
         ),
         (
             "batch_sync_report",
-            json!({ "total": 0, "succeeded": 0, "failed": [{ "questId": 1, "title": null, "reason": "" }], "cancelled": false }),
+            serde_json::to_value(shared::dto::BatchSyncReport {
+                handle: 1,
+                total: 0,
+                succeeded: 0,
+                failed: vec![],
+                cancelled: false,
+            })
+            .unwrap(),
         ),
-        ("sync_failure", json!({ "questId": 1, "title": null, "reason": "" })),
+        (
+            "batch_sync_status",
+            serde_json::to_value(shared::dto::BatchSyncStatus {
+                progress: shared::dto::SyncProgress {
+                    handle: 1,
+                    done: 0,
+                    total: 0,
+                    current_quest_title: None,
+                    failed_count: 0,
+                    current_job: None,
+                },
+                report: None,
+            })
+            .unwrap(),
+        ),
+        (
+            "sync_failure",
+            json!({ "questId": 1, "title": null, "reason": "" }),
+        ),
         (
             "candidate_form",
             json!({ "form": "食べる", "formKind": "base", "sourceNote": "还原形" }),
         ),
-        (
-            "gloss_dto",
-            json!({ "lang": "zh", "texts": ["吃"] }),
-        ),
+        ("gloss_dto", json!({ "lang": "zh", "texts": ["吃"] })),
         (
             "dict_entry_dto",
             json!({
@@ -106,7 +151,10 @@ pub fn samples() -> Vec<(&'static str, Value)> {
                 "matchedSourceNote": null, "termTexts": null
             }),
         ),
-        ("dict_search_result", json!({ "entries": [{ "headword": "食べる", "readingKana": "たべる", "pos": ["動詞"], "glosses": [{ "lang": "zh", "texts": ["吃"] }], "source": "zhwiktionary", "common": true, "matchedForm": "食べる", "matchedFormKind": "surface", "matchedSourceNote": null, "termTexts": null }], "dictAvailable": true })),
+        (
+            "dict_search_result",
+            json!({ "entries": [{ "headword": "食べる", "readingKana": "たべる", "pos": ["動詞"], "glosses": [{ "lang": "zh", "texts": ["吃"] }], "source": "zhwiktionary", "common": true, "matchedForm": "食べる", "matchedFormKind": "surface", "matchedSourceNote": null, "termTexts": null }], "dictAvailable": true }),
+        ),
         (
             "note_dto",
             json!({
@@ -130,8 +178,14 @@ pub fn samples() -> Vec<(&'static str, Value)> {
                 "userNote": null, "tags": ["生词"]
             }),
         ),
-        ("task_notes_group", json!({ "questId": 1, "questTitle": null, "notes": [{ "id": 1, "kind": "word", "optRef": { "questId": 1, "subQuestId": "0", "stepId": "0", "treeNo": 0, "dialogId": "1", "optIndex": 0 }, "termText": null, "termReading": null, "termBase": null, "contextText": null, "contextRole": null, "contextNext": null, "analysisSnapshotJson": null, "provenanceStale": false, "staleReason": null, "userNote": null, "tags": [], "origin": "user", "aiGeneratedJson": null, "createdAt": 0, "updatedAt": 0 }] })),
-        ("notes_by_task", json!({ "groups": [{ "questId": 1, "questTitle": "任务", "notes": [{ "id": 1, "kind": "word", "optRef": { "questId": 1, "subQuestId": "0", "stepId": "0", "treeNo": 0, "dialogId": "1", "optIndex": 0 }, "termText": "x", "termReading": null, "termBase": null, "contextText": null, "contextRole": null, "contextNext": null, "analysisSnapshotJson": null, "provenanceStale": false, "staleReason": null, "userNote": null, "tags": [], "origin": "user", "aiGeneratedJson": null, "createdAt": 0, "updatedAt": 0 }] }] })),
+        (
+            "task_notes_group",
+            json!({ "questId": 1, "questTitle": null, "notes": [{ "id": 1, "kind": "word", "optRef": { "questId": 1, "subQuestId": "0", "stepId": "0", "treeNo": 0, "dialogId": "1", "optIndex": 0 }, "termText": null, "termReading": null, "termBase": null, "contextText": null, "contextRole": null, "contextNext": null, "analysisSnapshotJson": null, "provenanceStale": false, "staleReason": null, "userNote": null, "tags": [], "origin": "user", "aiGeneratedJson": null, "createdAt": 0, "updatedAt": 0 }] }),
+        ),
+        (
+            "notes_by_task",
+            json!({ "groups": [{ "questId": 1, "questTitle": "任务", "notes": [{ "id": 1, "kind": "word", "optRef": { "questId": 1, "subQuestId": "0", "stepId": "0", "treeNo": 0, "dialogId": "1", "optIndex": 0 }, "termText": "x", "termReading": null, "termBase": null, "contextText": null, "contextRole": null, "contextNext": null, "analysisSnapshotJson": null, "provenanceStale": false, "staleReason": null, "userNote": null, "tags": [], "origin": "user", "aiGeneratedJson": null, "createdAt": 0, "updatedAt": 0 }] }] }),
+        ),
         (
             "reading_progress_dto",
             json!({
@@ -139,8 +193,14 @@ pub fn samples() -> Vec<(&'static str, Value)> {
                 "dialogId": "101", "optIndex": 0, "pathStackJson": "[]", "updatedAt": 0
             }),
         ),
-        ("override_hit_dto", json!({ "reading": "いこう", "scope": "dialog" })),
-        ("ai_test_result", json!({ "ok": true, "message": "", "rawOutput": null })),
+        (
+            "override_hit_dto",
+            json!({ "reading": "いこう", "scope": "dialog" }),
+        ),
+        (
+            "ai_test_result",
+            json!({ "ok": true, "message": "", "rawOutput": null }),
+        ),
         (
             "ai_profile_dto",
             json!({
@@ -166,7 +226,10 @@ pub fn samples() -> Vec<(&'static str, Value)> {
             "ai_conversation_dto",
             json!({ "id": 1, "title": "", "questId": 1, "createdAt": 0, "messages": [{ "id": 1, "role": "user", "content": "", "createdAt": 0 }] }),
         ),
-        ("ai_message_dto", json!({ "id": 1, "role": "user", "content": "", "createdAt": 0 })),
+        (
+            "ai_message_dto",
+            json!({ "id": 1, "role": "user", "content": "", "createdAt": 0 }),
+        ),
         ("table_count", json!({ "label": "笔记", "count": 0 })),
         (
             "backup_summary",
@@ -205,17 +268,43 @@ pub fn samples() -> Vec<(&'static str, Value)> {
 pub fn literal_enums() -> Vec<(&'static str, Vec<&'static str>)> {
     vec![
         ("node_kind", vec!["talk", "choice", "narration"]),
-        ("node_align_status", vec!["ok", "missing_side", "conflict", "dangling"]),
-        ("fetch_job_state", vec!["queued", "fetching", "done", "failed", "cancelled"]),
+        (
+            "node_align_status",
+            vec!["ok", "missing_side", "conflict", "dangling"],
+        ),
+        (
+            "fetch_job_state",
+            vec!["queued", "fetching", "done", "failed", "cancelled"],
+        ),
         ("form_kind", vec!["surface", "base", "reading"]),
-        ("dict_source", vec!["term", "zhwiktionary", "jmdict", "jmnedict"]),
+        (
+            "dict_source",
+            vec!["term", "zhwiktionary", "jmdict", "jmnedict"],
+        ),
         ("override_scope", vec!["dialog", "quest", "global"]),
-        ("ai_availability", vec!["unconfigured", "configured_available", "configured_unavailable"]),
+        (
+            "ai_availability",
+            vec![
+                "unconfigured",
+                "configured_available",
+                "configured_unavailable",
+            ],
+        ),
         ("ai_channel", vec!["cli", "http"]),
         ("cli_kind", vec!["claude", "codex", "opencode"]),
-        ("app_error_kind", vec![
-            "network", "data_source", "data_integrity", "resource_missing",
-            "isolation", "ai_channel", "cancelled", "invalid_param", "internal",
-        ]),
+        (
+            "app_error_kind",
+            vec![
+                "network",
+                "data_source",
+                "data_integrity",
+                "resource_missing",
+                "isolation",
+                "ai_channel",
+                "cancelled",
+                "invalid_param",
+                "internal",
+            ],
+        ),
     ]
 }

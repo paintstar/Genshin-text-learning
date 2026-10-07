@@ -7,7 +7,7 @@ const preferences = usePreferencesStore()
 <template>
   <n-card title="主题" size="small"
     ><p class="setting-copy">
-      选择浅色、深色、青绿、绯樱、水色，或跟随系统。偏好会自动保存，重启后仍会记住；界面配色会立即生效。
+      选择浅色、深色、森绿、青绿、绯樱、水色，或跟随系统。偏好会自动保存，重启后仍会记住；界面配色会立即生效。
     </p>
     <n-radio-group v-model:value="preferences.theme" class="preference-options" :disabled="!preferences.loaded" aria-label="主题"
       ><n-radio-button

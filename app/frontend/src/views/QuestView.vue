@@ -355,7 +355,14 @@ function windowLinesFor(row: AlignedRow) {
       <ReaderLayoutPanel v-model:open="layoutPanelOpen" />
     </div>
     <n-alert v-if="reader.fetchState === 'fetching'" type="info" class="notice"
-      >正在准备本章的双语剧情，首次下载可能需要一些时间。<n-button
+      >{{ reader.fetchProgress?.phase || '正在准备本章的双语剧情…' }}
+      <n-progress
+        type="line"
+        :percentage="reader.fetchProgress ? Math.floor(reader.fetchProgress.completed / Math.max(1, reader.fetchProgress.total) * 100) : 0"
+        processing
+        style="margin: 10px 0"
+      />
+      <span>切换页面后下载仍会继续，完成后可离线阅读。</span><n-button
         v-if="reader.fetchHandle !== null"
         size="small"
         text

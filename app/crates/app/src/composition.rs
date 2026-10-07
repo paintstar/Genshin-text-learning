@@ -7,7 +7,9 @@ use rusqlite::Connection;
 use shared::{AppError, AppErrorKind};
 use std::sync::atomic::AtomicU64;
 use std::sync::{Arc, Mutex};
-use store::{ConnInitHook, MigrationFragment, MigrationRunner, RestoreService, SettingsKvStore, Store};
+use store::{
+    ConnInitHook, MigrationFragment, MigrationRunner, RestoreService, SettingsKvStore, Store,
+};
 
 /// 全部迁移片段按全局版本时间线聚合（决策 16）。
 pub fn all_fragments() -> Vec<MigrationFragment> {
@@ -43,7 +45,11 @@ pub fn compose(args: ComposeArgs) -> Result<Arc<AppState>, AppError> {
 
     let fragments = all_fragments();
     // 阶段二恢复：启动早期、store 打开 app.db 之前（决策 12）。
-    let restore = RestoreService::new(&args.data_dir, current_schema_version(&fragments), fragments.clone());
+    let restore = RestoreService::new(
+        &args.data_dir,
+        current_schema_version(&fragments),
+        fragments.clone(),
+    );
     if restore.has_pending() {
         restore.execute_pending_if_any()?;
     }
@@ -51,7 +57,8 @@ pub fn compose(args: ComposeArgs) -> Result<Arc<AppState>, AppError> {
     // 词典挂载注入连接初始化扩展点（dict 域持有挂载规则；store 只管连接生命周期）。
     // 词典资源缺失（安装损坏）→ 显式停用词典功能（连接级探测），应用可启动。
     let dict_path = args.dict_db_path.clone();
-    let mount_hook: ConnInitHook = Arc::new(move |conn: &Connection| dict::DictMount::mount(conn, &dict_path));
+    let mount_hook: ConnInitHook =
+        Arc::new(move |conn: &Connection| dict::DictMount::mount(conn, &dict_path));
     let store = match Store::open(&args.data_dir, vec![mount_hook]) {
         Ok(s) => s,
         Err(e) if e.kind == AppErrorKind::ResourceMissing => {
@@ -76,9 +83,15 @@ pub fn compose(args: ComposeArgs) -> Result<Arc<AppState>, AppError> {
     let source: Arc<dyn kb::QuestSource> = match args.source_override {
         Some(s) => s,
         None => {
-            let yatta = crate::state::build_yatta_source(&args.source_base_url, scheduler.clone(), gate.clone())?;
+            let yatta = crate::state::build_yatta_source(
+                &args.source_base_url,
+                scheduler.clone(),
+                gate.clone(),
+            )?;
             // 自定义请求头（高级设置）。
-            if let Ok(Some(headers)) = store.with_read(|c| SettingsKvStore::get(c, "fetch.custom_headers_json")) {
+            if let Ok(Some(headers)) =
+                store.with_read(|c| SettingsKvStore::get(c, "fetch.custom_headers_json"))
+            {
                 let _ = yatta.set_custom_headers(&headers);
             }
             yatta
@@ -88,7 +101,9 @@ pub fn compose(args: ComposeArgs) -> Result<Arc<AppState>, AppError> {
     // AI 栈：真实通道 = ChannelDispatch（CLI + HTTP 按通道路由）→ AiCache
     // 装饰器包裹（组合根单点，全部调用自动经缓存）。
     let guard = Arc::new(ai::CliIsolationGuard::new(&args.data_dir));
-    let cli_adapter = Arc::new(ai::cli::CliAdapter { guard: guard.clone() });
+    let cli_adapter = Arc::new(ai::cli::CliAdapter {
+        guard: guard.clone(),
+    });
     let http_adapter = Arc::new(ai::HttpChatAdapter::new());
     let dispatch = Arc::new(ai::ChannelDispatch {
         cli: cli_adapter.clone(),
@@ -109,10 +124,13 @@ pub fn compose(args: ComposeArgs) -> Result<Arc<AppState>, AppError> {
         source,
         gate,
         scheduler,
-        secret: args.secret_vault.unwrap_or_else(|| Arc::new(store::KeyringVault)),
+        secret: args
+            .secret_vault
+            .unwrap_or_else(|| Arc::new(store::KeyringVault)),
         ai_client,
         ai_guard: guard,
         fetch_jobs: FetchJobs::default(),
+        batch_sync: Mutex::new(None),
         cancels: crate::cancel::CancelRegistry::default(),
         request_counter: AtomicU64::new(1),
         dict_db_path: args.dict_db_path,

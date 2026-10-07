@@ -18,6 +18,7 @@ import type {
   AppInitInfo,
   BackupSummary,
   BatchSyncReport,
+  BatchSyncStatus,
   CandidateForm,
   DlgLoc,
   DictSearchResult,
@@ -96,7 +97,8 @@ export interface Gateway {
   bootstrapIndexSync(): Promise<UpdateReport>
   updateCheck(): Promise<UpdateReport>
   updateRefresh(questIds: number[]): Promise<RefreshOutcome[]>
-  batchSyncStart(): Promise<number>
+  batchSyncStart(questIds?: number[]): Promise<number>
+  batchSyncStatus(): Promise<BatchSyncStatus | null>
   batchSyncCancel(handle: number): Promise<boolean>
   onBatchSyncProgress(cb: (p: SyncProgress) => void): Promise<() => void>
   onBatchSyncDone(cb: (r: BatchSyncReport) => void): Promise<() => void>

@@ -15,6 +15,7 @@ import type {
   AppInitInfo,
   BackupSummary,
   BatchSyncReport,
+  BatchSyncStatus,
   CandidateForm,
   DlgLoc,
   DictSearchResult,
@@ -94,8 +95,11 @@ export class TauriGateway implements Gateway {
   async updateRefresh(questIds: number[]): Promise<RefreshOutcome[]> {
     return call('update_refresh', { questIds })
   }
-  async batchSyncStart(): Promise<number> {
-    return call('batch_sync_start')
+  async batchSyncStart(questIds?: number[]): Promise<number> {
+    return call('batch_sync_start', { questIds: questIds ?? null })
+  }
+  async batchSyncStatus(): Promise<BatchSyncStatus | null> {
+    return call('batch_sync_status')
   }
   async batchSyncCancel(handle: number): Promise<boolean> {
     return call('batch_sync_cancel', { handle })

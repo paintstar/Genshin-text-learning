@@ -113,8 +113,10 @@ describe('initUiFontController', () => {
 describe('全局字号 CSS 消费点同源锁定', () => {
   it('styles.css 字号全 calc 化且 body 覆盖规则在位', () => {
     const css = readFileSync(new URL('../../styles.css', import.meta.url), 'utf8')
-    // 35 处既有字号改造 + 1 条 html body 新规则 = 恰 36 处消费。
-    expect(css.match(/var\(--ui-font-scale, 1\)/g)?.length).toBe(36)
+    // 新增组件也应参与字号缩放，不固定样式声明的数量。
+    const fontSizes = [...css.matchAll(/font-size:\s*([^;]+);/g)]
+    expect(fontSizes.length).toBeGreaterThan(0)
+    for (const [, value] of fontSizes) expect(value).toContain('var(--ui-font-scale, 1)')
     // 零声明（D1/契约 2：styles.css 只消费不声明，唯一写入点是控制器；
     // 新规则注释中的变量名为行文指代、其后无冒号，不命中此模式）。
     expect(css.match(/--ui-font-scale\s*:/g)).toBe(null)

@@ -85,7 +85,7 @@ describe('initThemeController', () => {
     // 同步、无任何事件：class 已由 immediate watch 首次 apply 就位。
     // 若注入未先于 getter 首读，node 下默认 resolver 返回 false、resolvedTheme 应为 'light'。
     expect(classList.contains(DARK_THEME_CLASS)).toBe(true)
-    expect(preferences.resolvedTheme).toBe('dark')
+    expect(preferences.resolvedTheme).toBe('black')
     expect(naiveThemeFor(preferences.resolvedTheme)).toBe(darkTheme)
   })
 
@@ -95,7 +95,7 @@ describe('initThemeController', () => {
     const media = fakeMatchMedia(true)
     const { doc, classList } = fakeDocument()
     controller = initThemeController(preferences, { matchMedia: media.matchMedia, document: doc })
-    expect(preferences.resolvedTheme).toBe('dark')
+    expect(preferences.resolvedTheme).toBe('black')
     controller.dispose()
     controller = initThemeController(preferences, { matchMedia: media.matchMedia, document: doc })
     media.dispatch(false)
@@ -133,7 +133,7 @@ describe('initThemeController', () => {
     // 显式 dark：系统浅色下仍立即为深色。
     {
       const preferences = usePreferencesStore()
-      preferences.theme = 'dark'
+      preferences.theme = 'black'
       const media = fakeMatchMedia(false)
       const { doc, classList } = fakeDocument()
       const explicit = initThemeController(preferences, {
@@ -184,16 +184,16 @@ describe('initThemeController', () => {
     })
     // class 名为 styles.css 配色任务的选择器接口，跨任务契约以字面量锁定。
     expect(classList.contains('theme-green')).toBe(true)
-    expect(classList.contains('dark')).toBe(false)
-    preferences.theme = 'dark'
+    expect(classList.contains('theme-black')).toBe(false)
+    preferences.theme = 'black'
     await nextTick()
-    expect(classList.contains('dark')).toBe(true)
+    expect(classList.contains('theme-black')).toBe(true)
     expect(classList.contains('theme-green')).toBe(false)
     // dark→green 方向亦同断言一次。
     preferences.theme = 'green'
     await nextTick()
     expect(classList.contains('theme-green')).toBe(true)
-    expect(classList.contains('dark')).toBe(false)
+    expect(classList.contains('theme-black')).toBe(false)
     preferences.theme = 'light'
     await nextTick()
     for (const cls of THEME_CLASSES) {
@@ -219,8 +219,22 @@ describe('initThemeController', () => {
     expect(classList.contains('theme-sakura')).toBe(false)
   })
 
+  it('森绿与新深色切换不会残留另一套颜色', async () => {
+    const preferences = usePreferencesStore()
+    const { doc, classList } = fakeDocument()
+    controller = initThemeController(preferences, { document: doc, matchMedia: fakeMatchMedia(false).matchMedia })
+    preferences.theme = 'dark'
+    await nextTick()
+    expect(classList.contains('dark')).toBe(true)
+    expect(classList.contains('theme-black')).toBe(false)
+    preferences.theme = 'black'
+    await nextTick()
+    expect(classList.contains('dark')).toBe(false)
+    expect(classList.contains('theme-black')).toBe(true)
+  })
+
   it('THEME_CLASSES 与 THEME_VALUES 派生一致', () => {
-    expect(THEME_CLASSES).toEqual(['dark', 'theme-green', 'theme-sakura', 'theme-aqua'])
+    expect(THEME_CLASSES).toEqual(['theme-black', 'dark', 'theme-green', 'theme-sakura', 'theme-aqua'])
   })
 
   it('dispose 停止联动并还原 resolver，且幂等', async () => {
@@ -286,9 +300,9 @@ describe('initThemeController', () => {
     // 注入仍生效：resolvedTheme 经注入 resolver 解析为 light。
     expect(preferences.resolvedTheme).toBe('light')
     // document 为 null：theme 翻转照常驱动 watch，apply 空转不抛。
-    preferences.theme = 'dark'
+    preferences.theme = 'black'
     await nextTick()
-    expect(preferences.resolvedTheme).toBe('dark')
+    expect(preferences.resolvedTheme).toBe('black')
     expect(() => controller!.dispose()).not.toThrow()
   })
 })
@@ -297,6 +311,7 @@ describe('themeClassFor', () => {
   it('规则表：light 无 class、dark 沿用裸 dark、其余落 theme-{id}', () => {
     expect(themeClassFor('light')).toBe(null)
     expect(themeClassFor('dark')).toBe('dark')
+    expect(themeClassFor('black')).toBe('theme-black')
     expect(themeClassFor('green')).toBe('theme-green')
     expect(themeClassFor('sakura')).toBe('theme-sakura')
     expect(themeClassFor('aqua')).toBe('theme-aqua')

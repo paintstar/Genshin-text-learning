@@ -26,10 +26,12 @@ pub const SETTINGS_KEYS: &[(&str, &str)] = &[
     ("reader.line_height", "standard"),
     // 阅读器内容页宽：narrow | standard | wide。
     ("reader.page_width", "standard"),
-    // 界面主题：system 跟随系统 | light 浅色 | dark 深色。
+    // 界面主题：system 跟随系统；具体配色由前端外观选项维护。
     ("ui.theme", "system"),
     // 应用全局界面字号（作用于整个应用界面，区别于阅读区字号 reader.font_size）。
     ("ui.font_size", "standard"),
+    // 窗口的逻辑尺寸与最大化状态。
+    ("ui.window_state", "{}"),
 ];
 
 pub fn is_valid_key(key: &str) -> bool {

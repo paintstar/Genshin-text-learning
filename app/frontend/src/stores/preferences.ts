@@ -4,7 +4,8 @@ import { defineStore } from 'pinia'
 import { shallowRef, watch, type WatchStopHandle } from 'vue'
 import { getGateway } from '@/gateway/provider'
 
-export type ThemePreference = 'system' | 'light' | 'dark' | 'green' | 'sakura' | 'aqua'
+/** dark 保留旧设置值，现名为森绿；black 为新增的中性深色。 */
+export type ThemePreference = 'system' | 'light' | 'black' | 'dark' | 'green' | 'sakura' | 'aqua'
 export type FontSizePreference = 'small' | 'standard' | 'large' | 'xlarge'
 export type LineHeightPreference = 'compact' | 'standard' | 'loose'
 export type PageWidthPreference = 'narrow' | 'standard' | 'wide'
@@ -15,6 +16,7 @@ export type ConcreteTheme = Exclude<ThemePreference, 'system'>
 export const THEME_VALUES: readonly ThemePreference[] = [
   'system',
   'light',
+  'black',
   'dark',
   'green',
   'sakura',
@@ -74,7 +76,7 @@ export const usePreferencesStore = defineStore('preferences', {
   getters: {
     resolvedTheme(state): ConcreteTheme {
       if (state.theme !== 'system') return state.theme
-      return systemPrefersDark.value() ? 'dark' : 'light'
+      return systemPrefersDark.value() ? 'black' : 'light'
     },
   },
   actions: {

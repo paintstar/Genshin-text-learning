@@ -3,7 +3,7 @@
  * 选择函数与 naive 主题映射（常量引用 + darkTheme/null）、与 styles.css 各主题
  * 调色板同源锁定（改 CSS 调色板漏改 overrides 时测试失败）、主题块纯度与
  * 变量集一致性（主题块只覆盖变量值与 color-scheme，不新增规则、不遗漏变量）、
- * 字号族与组件字号锁定（calc 落地、五套常量一致、基值对齐 naive 默认）。
+ * 字号族与组件字号锁定（calc 落地、各主题一致、基值对齐 naive 默认）。
  * styles.css 用 node fs 原文读取（vite `?raw` 在 vitest 中会被 stub 成空串）；
  * 项目 tsconfig types 未含 node（无 @types/node），导入处以 @ts-expect-error
  * 压制模块声明缺失，运行时由 node 环境解析真实 node:fs。
@@ -16,6 +16,7 @@ import { THEME_VALUES, type ConcreteTheme } from '@/stores/preferences'
 import { readFileSync } from 'node:fs'
 import {
   aquaOverrides,
+  blackOverrides,
   darkOverrides,
   greenOverrides,
   lightOverrides,
@@ -27,6 +28,7 @@ import {
 type ThemeBlockSelector =
   | ':root'
   | 'html.dark'
+  | 'html.theme-black'
   | 'html.theme-green'
   | 'html.theme-sakura'
   | 'html.theme-aqua'
@@ -66,7 +68,7 @@ describe('themeOverrides', () => {
     expect(lightOverrides.Card?.borderRadius).toBe('16px')
   })
 
-  it('深色 overrides 关键色与两套确实不同', () => {
+  it('森绿 overrides 保留原深色配色', () => {
     expect(darkOverrides.common?.bodyColor).toBe('#111714')
     expect(darkOverrides.common?.cardColor).toBe('#1c2420')
     expect(darkOverrides.common?.textColorBase).toBe('#dde5dd')
@@ -81,6 +83,16 @@ describe('themeOverrides', () => {
     expect(darkOverrides.Card?.borderRadius).toBe('16px')
   })
 
+  it('新深色使用黑灰背景并覆盖组件浮层', () => {
+    expect(blackOverrides.common?.bodyColor).toBe('#0d1117')
+    expect(blackOverrides.common?.cardColor).toBe('#151b23')
+    expect(blackOverrides.common?.popoverColor).toBe(blackOverrides.common?.cardColor)
+    expect(blackOverrides.common?.primaryColor).toBe('#4493f8')
+    expect(themeOverridesFor('black')).toBe(blackOverrides)
+    expect(naiveThemeFor('black')).toBe(darkTheme)
+    expect(blackOverrides.common?.bodyColor).not.toBe(darkOverrides.common?.bodyColor)
+  })
+
   it('与 styles.css 各主题调色板同源', () => {
     const themeBlocks: ReadonlyArray<{
       selector: ThemeBlockSelector
@@ -88,6 +100,7 @@ describe('themeOverrides', () => {
     }> = [
       { selector: ':root', common: lightOverrides.common },
       { selector: 'html.dark', common: darkOverrides.common },
+      { selector: 'html.theme-black', common: blackOverrides.common },
       { selector: 'html.theme-green', common: greenOverrides.common },
       { selector: 'html.theme-sakura', common: sakuraOverrides.common },
       { selector: 'html.theme-aqua', common: aquaOverrides.common },
@@ -114,6 +127,7 @@ describe('themeOverrides', () => {
     const concreteThemes = THEME_VALUES.filter((v): v is ConcreteTheme => v !== 'system')
     const expectedOverrides: Record<ConcreteTheme, unknown> = {
       light: lightOverrides,
+      black: blackOverrides,
       dark: darkOverrides,
       green: greenOverrides,
       sakura: sakuraOverrides,
@@ -124,6 +138,7 @@ describe('themeOverrides', () => {
     }
     const expectedBases: Record<ConcreteTheme, typeof darkTheme | null> = {
       light: null,
+      black: darkTheme,
       dark: darkTheme,
       green: null,
       sakura: null,
@@ -143,6 +158,7 @@ describe('themeOverrides', () => {
   it('主题块只覆盖变量值：块内仅变量与 color-scheme 声明，变量集与 :root 完全一致', () => {
     const themeBlockSelectors: ThemeBlockSelector[] = [
       'html.dark',
+      'html.theme-black',
       'html.theme-green',
       'html.theme-sakura',
       'html.theme-aqua',
@@ -166,14 +182,15 @@ describe('themeOverrides', () => {
     // color-scheme 随主题切换，滚动条与原生控件跟随主题。
     expect(cssBlockBody(':root')).toContain('color-scheme: light')
     expect(cssBlockBody('html.dark')).toContain('color-scheme: dark')
-    for (const selector of themeBlockSelectors.slice(1)) {
+    expect(cssBlockBody('html.theme-black')).toContain('color-scheme: dark')
+    for (const selector of themeBlockSelectors.filter(selector => selector !== 'html.dark' && selector !== 'html.theme-black')) {
       expect(cssBlockBody(selector)).toContain('color-scheme: light')
     }
   })
 
-  it('字号族与组件字号：calc 落地、五套常量一致、基值对齐 naive 默认', () => {
+  it('字号族与组件字号：calc 落地、各主题一致、基值对齐 naive 默认', () => {
     const calc = (px: number) => `calc(${px}px * var(--ui-font-scale, 1))`
-    for (const o of [lightOverrides, darkOverrides, greenOverrides, sakuraOverrides, aquaOverrides]) {
+    for (const o of [lightOverrides, darkOverrides, blackOverrides, greenOverrides, sakuraOverrides, aquaOverrides]) {
       expect(o.common?.fontSize).toBe(calc(14))
       expect(o.common?.fontSizeMini).toBe(calc(12))
       expect(o.common?.fontSizeTiny).toBe(calc(12))
