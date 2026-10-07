@@ -29,6 +29,7 @@ const emit = defineEmits<{
     class="popup"
     size="small"
     title="词句解析"
+    :header-style="{ position: 'sticky', top: '0', zIndex: 1, background: 'var(--paper)' }"
     @close="emit('close')"
     closable
   >
@@ -159,6 +160,7 @@ const emit = defineEmits<{
 <style scoped>
 .popup {
   max-width: 560px;
+  overflow-wrap: anywhere;
 }
 .token-map {
   line-height: 2;

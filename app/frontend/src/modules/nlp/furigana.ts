@@ -3,7 +3,7 @@
  *
  * token 读音对齐到词面内各汉字段：将 surface 切分为「汉字段/非汉字段」序列，
  * 读音串（平假名）按非汉字段做贪心匹配消解，剩余读音归对应汉字段；对齐失败
- * （当て字、人名等）退化为**整词 ruby**（绝不产生错误注音）。仅对含汉字的
+ * （当て字、人名等）退化为整词 ruby；读音准确度取决于上游词典。仅对含汉字的
  * token 生成 ruby（纯假名/数字不注）。
  */
 
@@ -80,7 +80,7 @@ export function katakanaToHiragana(s: string): string {
  * - 按 token 的 position（1 基）铺开；词素未覆盖的空隙以原文单元补齐，
  *   保证全部单元按序拼接严格还原原句（渲染与划词偏移不受影响）；
  * - 仅对「含汉字且带假名读音」的 token 调 annotate 生成 ruby（对齐失败在其
- *   内部退化为整词 ruby）；无读音/纯假名 token 原样渲染——绝不产生猜测注音；
+ *   内部退化为整词 ruby）；无读音/纯假名 token 原样渲染，不额外推测读音；
  * - 乱序/越界 token 防御性丢弃（拼接还原性优先）。
  */
 export function annotateSentence(

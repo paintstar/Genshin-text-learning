@@ -2,6 +2,10 @@ import { createRouter, createWebHistory } from 'vue-router'
 
 export const router = createRouter({
   history: createWebHistory(),
+  scrollBehavior(to, _from, savedPosition) {
+    // 阅读页等待正文与注音就绪后按行恢复，其他页面正常回到顶部。
+    return to.name === 'quest' ? false : savedPosition || { top: 0 }
+  },
   routes: [
     {
       path: '/',

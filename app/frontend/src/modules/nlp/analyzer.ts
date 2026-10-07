@@ -11,7 +11,7 @@ export interface MorphToken {
   surface: string
   /** 词形还原（base_form；此分支库字段名为 basic_form）。 */
   base: string | null
-  /** 读音（片假名，来自 IPADIC）。 */
+  /** 读音（片假名，来自 IPADIC 或已确认的术语读音）。 */
   reading: string | null
   /** 词性（日文标签）。 */
   pos: string | null

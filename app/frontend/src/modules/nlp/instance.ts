@@ -6,5 +6,6 @@
 
 import { CachedAnalyzer } from './analyzer'
 import { WorkerAnalyzer } from './workerClient'
+import { TermReadingAnalyzer } from './termReadings'
 
-export const sharedAnalyzer = new CachedAnalyzer(new WorkerAnalyzer())
+export const sharedAnalyzer = new CachedAnalyzer(new TermReadingAnalyzer(new WorkerAnalyzer()))

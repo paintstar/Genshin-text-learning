@@ -1,8 +1,11 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { onBeforeRouteLeave, onBeforeRouteUpdate, useRoute, useRouter } from 'vue-router'
+import { useElementBounding, useEventListener, useResizeObserver } from '@vueuse/core'
 import { useMessage } from 'naive-ui'
 import { useReaderStore } from '@/stores/reader'
+import { useReadingHistoryStore } from '@/stores/readingHistory'
+import { captureReadingPosition, restoreReadingPosition, type ReadingPosition } from '@/modules/reader/readingPosition'
 import { useNotesStore } from '@/stores/notes'
 import { useAiStore } from '@/stores/ai'
 import { usePreferencesStore } from '@/stores/preferences'
@@ -23,6 +26,7 @@ const route = useRoute()
 const router = useRouter()
 const message = useMessage()
 const reader = useReaderStore()
+const readingHistory = useReadingHistoryStore()
 const notes = useNotesStore()
 const ai = useAiStore()
 const preferences = usePreferencesStore()
@@ -39,11 +43,22 @@ const selectionLoading = ref(false)
 const selectionError = ref('')
 const showAi = ref(false)
 const layoutPanelOpen = ref(false)
+const readerSide = ref<HTMLElement | null>(null)
+const { top: readerSideTop, update: updateReaderSideBounds } = useElementBounding(readerSide)
+watch(layoutPanelOpen, updateReaderSideBounds, { flush: 'post' })
+watch(selection, () => {
+  readerSide.value?.scrollTo({ top: 0 })
+  updateReaderSideBounds()
+}, { flush: 'post' })
 const currentRow = ref<{ row: AlignedRow; text: string } | null>(null)
 const analyzer = new SelectionAnalyzer(sharedAnalyzer, getGateway())
 const limit = ref(80)
 const find = ref('')
 const highlighted = ref('')
+const readingPaper = ref<HTMLElement | null>(null)
+let recordReady = false
+let restorePosition: ReadingPosition | null = null
+let savePositionTimer: ReturnType<typeof setTimeout> | undefined
 let selectionSequence = 0
 let navigationSequence = 0
 const title = computed(
@@ -95,10 +110,56 @@ const finished = computed(() => {
     !graph.nextBlockAfter({ ...f, subQuestId: graph.subQuestId })
   )
 })
+
+function saveReadingPosition() {
+  if (!recordReady || !reader.graph || !readingPaper.value) return
+  const graph = reader.graph
+  const previous = readingHistory.find(graph.questId, graph.subQuestId)
+  void readingHistory.remember({
+    questId: graph.questId,
+    subQuestId: graph.subQuestId,
+    title: reader.summary?.titles.find((t) => t.lang === 'chs')?.text || previous?.title || title.value,
+    chapterTitle: subTitle.value,
+    mode: reader.mode,
+    find: find.value,
+    visibleCount: limit.value,
+    ...captureReadingPosition(readingPaper.value),
+  })
+}
+function schedulePositionSave() {
+  if (!recordReady || restorePosition) return
+  clearTimeout(savePositionTimer)
+  savePositionTimer = setTimeout(saveReadingPosition, 350)
+}
+function applyRestoredPosition() {
+  if (restorePosition && readingPaper.value) restoreReadingPosition(readingPaper.value, restorePosition)
+}
+function stopRestoring() { restorePosition = null }
+function leaveReading() {
+  clearTimeout(savePositionTimer)
+  saveReadingPosition()
+  recordReady = false
+  restorePosition = null
+}
+onBeforeRouteLeave(leaveReading)
+onBeforeRouteUpdate(leaveReading)
+useEventListener(window, 'scroll', schedulePositionSave, { passive: true })
+useEventListener(window, 'pagehide', saveReadingPosition)
+useEventListener(window, 'wheel', stopRestoring, { passive: true })
+useEventListener(window, 'touchstart', stopRestoring, { passive: true })
+useEventListener(window, 'pointerdown', stopRestoring, { passive: true })
+useEventListener(window, 'keydown', stopRestoring)
+// 注音异步完成会改变行高，恢复期间持续对齐；用户开始操作后不再干预滚动。
+useResizeObserver(readingPaper, applyRestoredPosition)
+watch(() => [reader.mode, limit.value, reader.summary, find.value], schedulePositionSave, { flush: 'post' })
+
 watch(
-  () => [route.params.questId, route.params.subId],
+  () => [route.params.questId, route.params.subId, route.query.dialog, route.query.step, route.query.tree, route.query.opt],
   async () => {
+    if (route.name !== 'quest') return
     const nav = ++navigationSequence
+    recordReady = false
+    restorePosition = null
     const id = questId.value
     if (!Number.isSafeInteger(id) || id <= 0) {
       reader.fetchState = 'failed'
@@ -109,9 +170,12 @@ watch(
     currentRow.value = null
     find.value = ''
     limit.value = 80
+    highlighted.value = ''
+    await readingHistory.load()
+    if (nav !== navigationSequence) return
     const lastSub = await reader.restoreProgressFor(id)
     if (nav !== navigationSequence) return
-    await reader.openSubQuest(id, String(route.params.subId || lastSub || ''))
+    await reader.openSubQuest(id, String(route.params.subId || readingHistory.find(id)?.subQuestId || lastSub || ''))
   },
   { immediate: true },
 )
@@ -119,7 +183,10 @@ watch(
   () => reader.graph,
   async (graph) => {
     if (!graph) return
+    const nav = navigationSequence
     const dialog = String(route.query.dialog || '')
+    const previous = readingHistory.find(graph.questId, graph.subQuestId)
+    let noteTarget = ''
     if (dialog) {
       reader.mode = 'overview'
       const index = allRows.value.findIndex(
@@ -132,18 +199,32 @@ watch(
       if (index >= 0) {
         highlighted.value = rowKey(allRows.value[index])
         limit.value = Math.max(80, index + 1)
-        await nextTick()
-        document
-          .getElementById(`line-${highlighted.value}`)
-          ?.scrollIntoView({ block: 'center' })
+        noteTarget = highlighted.value
       }
+    } else if (previous) {
+      reader.mode = previous.mode
+      find.value = previous.find
+      await nextTick()
+      if (nav !== navigationSequence) return
+      const index = filteredRows.value.findIndex((row) => rowKey(row) === previous.anchor?.rowKey)
+      limit.value = Math.max(80, index + 1, Math.min(previous.visibleCount, filteredRows.value.length))
     }
+    await nextTick()
+    if (nav !== navigationSequence || route.name !== 'quest') return
+    restorePosition = noteTarget
+      ? { anchor: { rowKey: noteTarget, offset: window.innerHeight / 3 }, scrollY: 0 }
+      : !dialog && previous ? previous : { anchor: null, scrollY: 0 }
+    applyRestoredPosition()
+    recordReady = true
+    saveReadingPosition()
   },
 )
 watch(find, () => {
   limit.value = 80
 })
 onBeforeUnmount(() => {
+  clearTimeout(savePositionTimer)
+  recordReady = false
   ++navigationSequence
   ++selectionSequence
   reader.closeReader()
@@ -381,6 +462,10 @@ function windowLinesFor(row: AlignedRow) {
     <n-alert v-if="reader.progressError" type="warning" class="notice">{{
       reader.progressError
     }}</n-alert>
+    <n-alert v-if="readingHistory.saveError" type="warning" class="notice">
+      {{ readingHistory.saveError }}
+      <n-button text size="small" @click="readingHistory.persist()">重试保存</n-button>
+    </n-alert>
     <n-alert v-if="reader.session?.outdated" type="warning" class="notice"
       >剧情已更新，已恢复到最后可用的阅读位置。</n-alert
     >
@@ -391,7 +476,7 @@ function windowLinesFor(row: AlignedRow) {
       >{{ reader.session.jumpPrompt }}</n-alert
     >
     <div v-if="reader.graph" class="reader-layout">
-      <section class="reading-paper" :style="layoutStyle">
+      <section class="reading-paper" :style="layoutStyle" ref="readingPaper">
         <div class="paper-header">
           <span>{{ subTitle }}</span
           ><span
@@ -416,6 +501,7 @@ function windowLinesFor(row: AlignedRow) {
             v-for="row in filteredRows.slice(0, limit)"
             :key="rowKey(row)"
             :id="`line-${rowKey(row)}`"
+            :data-reading-row="rowKey(row)"
           >
             <AlignedRowView
               :row="row"
@@ -438,7 +524,7 @@ function windowLinesFor(row: AlignedRow) {
             ><AppIcon name="leaf" :size="16" /></div
         ></template>
         <template v-else
-          ><div v-for="v in visible" :key="rowKey(v.row)">
+          ><div v-for="v in visible" :key="rowKey(v.row)" :id="`line-${rowKey(v.row)}`" :data-reading-row="rowKey(v.row)">
             <AlignedRowView
               :row="v.row"
               :furigana="reader.furiganaOn"
@@ -482,7 +568,15 @@ function windowLinesFor(row: AlignedRow) {
           ></template
         >
       </section>
-      <aside class="reader-side">
+      <aside
+        ref="readerSide"
+        class="reader-side"
+        :style="{ '--analysis-panel-top': `${Math.max(0, readerSideTop)}px` }"
+        tabindex="0"
+        aria-label="词句解析面板"
+        @mouseenter="updateReaderSideBounds"
+        @focusin="updateReaderSideBounds"
+      >
         <n-alert v-if="selectionError" type="warning" class="notice">{{
           selectionError
         }}</n-alert

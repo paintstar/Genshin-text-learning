@@ -742,9 +742,16 @@ h1 {
   font-size: calc(11px * var(--ui-font-scale, 1));
 }
 .reader-side {
+  --analysis-panel-inset: 20px;
   position: sticky;
-  top: 20px;
+  top: var(--analysis-panel-inset);
   min-width: 0;
+  max-height: calc(100vh - max(var(--analysis-panel-top, 0px), var(--analysis-panel-inset)) - var(--analysis-panel-inset));
+  max-height: calc(100dvh - max(var(--analysis-panel-top, 0px), var(--analysis-panel-inset)) - var(--analysis-panel-inset));
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior-y: contain;
+  scrollbar-gutter: stable;
 }
 .reader-hint {
   margin-top: 18px;
@@ -855,6 +862,10 @@ h1 {
   }
   .reader-side {
     position: static;
+    max-height: none;
+    overflow: visible;
+    overscroll-behavior-y: auto;
+    scrollbar-gutter: auto;
   }
   .topbar-meta .status-dot,
   .topbar-meta > span:last-child {

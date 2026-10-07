@@ -18,6 +18,8 @@ pub const SETTINGS_KEYS: &[(&str, &str)] = &[
     ("reader.mode", "overview"),
     ("reader.display_language", "both"),
     ("reader.traveler", "M"),
+    // 最近阅读的章节、阅读模式和正文位置。
+    ("reader.history", "[]"),
     // 阅读器界面语言（用于任务名等界面文本的取值语言，游戏文本码族）。
     ("reader.ui_lang", "chs"),
     // 阅读器正文字号：small | standard | large | xlarge。

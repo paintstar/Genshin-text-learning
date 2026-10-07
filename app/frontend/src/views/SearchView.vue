@@ -5,6 +5,7 @@ import { useReaderStore } from '@/stores/reader'
 import { useSettingsStore } from '@/stores/settings'
 import { useDownloadsStore } from '@/stores/downloads'
 import AppIcon from '@/components/AppIcon.vue'
+import ReadingHistory from '@/components/ReadingHistory.vue'
 const router = useRouter()
 const reader = useReaderStore()
 const settings = useSettingsStore()
@@ -95,6 +96,7 @@ watch(canSearch, (ready, previous) => {
       </p>
       <div class="hero-orbit"><AppIcon name="compass" /></div>
     </section>
+    <ReadingHistory />
     <n-alert
       v-if="settings.message"
       type="error"

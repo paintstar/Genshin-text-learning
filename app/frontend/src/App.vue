@@ -13,6 +13,7 @@ import { naiveThemeFor, themeOverridesFor } from '@/modules/theme/themeOverrides
 import AiPanel from './components/AiPanel.vue'
 import AppIcon from './components/AppIcon.vue'
 import { useReaderStore } from '@/stores/reader'
+import { useReadingHistoryStore } from '@/stores/readingHistory'
 import { getGateway } from './gateway/provider'
 import { isPreview } from './gateway/provider'
 const route = useRoute()
@@ -21,6 +22,8 @@ const settings = useSettingsStore()
 const downloads = useDownloadsStore()
 void downloads.refresh()
 const reader = useReaderStore()
+const readingHistory = useReadingHistoryStore()
+void readingHistory.load()
 const preferences = usePreferencesStore()
 const themeController = initThemeController(preferences)
 const uiFontController = initUiFontController(preferences)
@@ -123,7 +126,8 @@ watch(
             <router-link
               v-for="item in nav"
               :key="item.name"
-              :to="{ name: item.name }"
+              :to="item.name === 'search' && route.name !== 'search' && route.name !== 'quest'
+                ? readingHistory.resumeLocation : { name: item.name }"
               class="nav-item"
               :class="{
                 active:
@@ -131,7 +135,8 @@ watch(
                   (item.name === 'search' && route.name === 'quest'),
               }"
               ><AppIcon :name="item.icon" /><span
-                >{{ item.label }}<small>{{ item.caption }}</small></span
+                >{{ item.label }}<small>{{ item.name === 'search' && readingHistory.latest && route.name !== 'search' && route.name !== 'quest'
+                  ? '继续上次阅读' : item.caption }}</small></span
               ></router-link
             >
           </nav>

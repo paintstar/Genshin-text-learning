@@ -145,7 +145,7 @@ describe('readerLayout', () => {
     )
     expect(quest).toContain('readerLayoutStyle')
     // 接线锁到绑定语句本身：仅有导入/调用而未绑定 .reading-paper 时失败。
-    expect(quest).toContain('<section class="reading-paper" :style="layoutStyle">')
+    expect(quest).toMatch(/<section\b[^>]*class="reading-paper"[^>]*:style="layoutStyle"[^>]*>/)
   })
 
   it('纸宽三件套规则级锁定（v5 缺陷 D1 回归）：.reading-paper 显式占满轨宽、再由页宽档收窄、auto 居中', () => {
