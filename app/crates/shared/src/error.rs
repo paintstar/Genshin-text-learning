@@ -110,6 +110,21 @@ impl fmt::Display for AppError {
 
 impl std::error::Error for AppError {}
 
+/// 展开错误的 source 链为「顶层: 底层1: 底层2」。
+///
+/// reqwest 0.12 起 `Display` 不再包含底层原因（如 connection reset、DNS 失败），
+/// 仅拼 `{e}` 会把排障关键信息丢在 source 链里。
+pub fn error_chain(err: &dyn std::error::Error) -> String {
+    let mut msg = err.to_string();
+    let mut source = err.source();
+    while let Some(e) = source {
+        msg.push_str(": ");
+        msg.push_str(&e.to_string());
+        source = e.source();
+    }
+    msg
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -123,5 +138,33 @@ mod tests {
         let back: AppError = serde_json::from_str(&json).unwrap();
         assert_eq!(back.kind, AppErrorKind::Isolation);
         assert_eq!(back.detail.as_deref(), Some("raw output"));
+    }
+
+    #[derive(Debug)]
+    struct LeafError(&'static str);
+    impl fmt::Display for LeafError {
+        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            write!(f, "{}", self.0)
+        }
+    }
+    impl std::error::Error for LeafError {}
+
+    #[derive(Debug)]
+    struct MidError(&'static str, LeafError);
+    impl fmt::Display for MidError {
+        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            write!(f, "{}", self.0)
+        }
+    }
+    impl std::error::Error for MidError {
+        fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+            Some(&self.1)
+        }
+    }
+
+    #[test]
+    fn error_chain_flattens_all_sources() {
+        let e = MidError("send failed", LeafError("connection reset"));
+        assert_eq!(error_chain(&e), "send failed: connection reset");
     }
 }

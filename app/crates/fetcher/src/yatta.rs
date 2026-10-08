@@ -10,7 +10,7 @@ use crate::{FetchScheduler, TermsGate, USER_AGENT};
 use async_trait::async_trait;
 use kb::{FetchDetailOutcome, HttpValidator, QuestSource, RawResponse};
 use reqwest::header::{HeaderMap, HeaderName, HeaderValue, IF_MODIFIED_SINCE, IF_NONE_MATCH};
-use shared::{AppError, GameLang};
+use shared::{error_chain, AppError, GameLang};
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -106,7 +106,7 @@ impl YattaClient {
                     let resp = req
                         .send()
                         .await
-                        .map_err(|e| AppError::network(format!("请求失败: {e}")))?;
+                        .map_err(|e| AppError::network(format!("请求失败: {}", error_chain(&e))))?;
                     match resp.status() {
                         s if s.is_success() => Ok(resp),
                         reqwest::StatusCode::NOT_MODIFIED => Ok(resp),
@@ -131,7 +131,7 @@ impl QuestSource for YattaClient {
         let bytes = resp
             .bytes()
             .await
-            .map_err(|e| AppError::network(format!("读取响应失败: {e}")))?;
+            .map_err(|e| AppError::network(format!("读取响应失败: {}", error_chain(&e))))?;
         Ok(RawResponse {
             bytes: bytes.to_vec(),
             validator,
@@ -154,7 +154,7 @@ impl QuestSource for YattaClient {
         let bytes = resp
             .bytes()
             .await
-            .map_err(|e| AppError::network(format!("读取响应失败: {e}")))?;
+            .map_err(|e| AppError::network(format!("读取响应失败: {}", error_chain(&e))))?;
         Ok(FetchDetailOutcome::Modified(RawResponse {
             bytes: bytes.to_vec(),
             validator: new_validator,

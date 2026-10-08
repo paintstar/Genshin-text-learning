@@ -13,7 +13,7 @@
 use crate::client::{AiClient, AiEvent, AiRequest};
 use async_trait::async_trait;
 use futures_util::StreamExt;
-use shared::AppError;
+use shared::{error_chain, AppError};
 use std::time::Duration;
 use tokio::sync::mpsc;
 
@@ -110,7 +110,7 @@ impl AiClient for HttpChatAdapter {
                 )
                 .await
                 .map_err(|_| AppError::network("AI 请求超时"))?
-                .map_err(|e| AppError::network(format!("AI 请求失败: {e}")))?;
+                .map_err(|e| AppError::network(format!("AI 请求失败: {}", error_chain(&e))))?;
                 let status = send.status();
                 if !status.is_success() {
                     let text = send.text().await.unwrap_or_default();

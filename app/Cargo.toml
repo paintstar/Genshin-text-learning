@@ -23,7 +23,8 @@ serde_json = "1"
 sha2 = "0.10"
 rusqlite = { version = "0.37", features = ["bundled", "backup"] }
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "process", "sync", "time", "fs", "io-util"] }
-reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json", "stream"] }
+# system-proxy：读取 Windows/macOS 系统代理设置（源站 gi.yatta.moe 在部分网络下仅代理可达）。
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json", "stream", "system-proxy"] }
 async-trait = "0.1"
 flate2 = "1"
 chrono = { version = "0.4", default-features = false, features = ["clock"] }

@@ -13,6 +13,6 @@ pub mod keys;
 pub mod lang;
 pub mod locator;
 
-pub use error::{AppError, AppErrorKind};
+pub use error::{error_chain, AppError, AppErrorKind};
 pub use lang::{GameLang, GlossLang};
 pub use locator::{DlgLoc, OptRef};
