@@ -6,11 +6,14 @@
 
 前往 [Releases](https://github.com/paintstar/Genshin-text-learning/releases/latest) 下载应用。
 
-当前提供 **macOS Apple Silicon（M 系列芯片）** 版本。解压 `GenshinLangLearning-v0.1.0-macos-arm64.zip`，将 `GenshinLangLearning.app` 放入「应用程序」后打开。词典和注音资源已包含在应用中，无需另装 Node.js、Rust 或 AI 工具。
+当前版本为 **v0.2.0**，提供以下安装包：
 
-应用采用本地 ad-hoc 签名，尚未经过 Apple 公证。如果 macOS 提示无法验证开发者，请在「系统设置 → 隐私与安全性」中按系统提示确认打开。
+- **Windows x64**：运行 `GenshinLangLearning_0.2.0_x64-setup.exe`，安装器包含离线 WebView2 运行组件。
+- **macOS Apple Silicon（M 系列芯片）**：解压 `GenshinLangLearning-macos-arm64.zip`，将 `GenshinLangLearning.app` 放入「应用程序」后打开。
 
-首次使用点击「连接并下载任务目录」，然后输入中文或日文任务名。任务正文按需下载，已下载的剧情可以离线阅读。
+macOS 版本尚未经过 Apple 公证。首次打开若提示「Apple 无法验证」，请点击「完成」，前往「系统设置 → 隐私与安全性」，找到该应用的提示并点击「仍要打开」，按提示验证后再点击「打开」。详见 [Apple 官方说明](https://support.apple.com/zh-cn/102445)。
+
+剧情、词典和注音资源已包含在应用中，无需另装 Node.js、Rust 或 AI 工具。首次启动会在后台建立书库，完成后输入中文或日文任务名即可搜索和离线阅读。
 
 ## 功能
 
@@ -24,11 +27,11 @@
 
 基础阅读、查词、注音和笔记无需配置 AI。部分词条仅有英文释义，游戏专有名词的自动注音可能存在偏差。
 
-## 剧情资源（开发版）
+## 剧情资源
 
-正在准备的 v0.2.0 内置完整双语剧情、词典和注音资源，首次启动可离线建立书库，也支持导入 `.gllpack` 和独立更新剧情。更新过程显示进度，可以取消后重新操作；笔记和阅读进度保留。资源维护仓库 [Genshin-dataset](https://github.com/paintstar/Genshin-dataset) 已公开，源码内提供默认更新地址。当前已发布的 v0.1.0 仍采用按需联网下载。
+v0.2.0 内置完整双语剧情，也支持导入 `.gllpack` 和独立更新剧情。更新过程显示进度，可以取消后重新操作；笔记和阅读进度保留。资源维护仓库 [Genshin-dataset](https://github.com/paintstar/Genshin-dataset) 已公开，应用提供默认更新地址。
 
-Windows x64 和 macOS Apple Silicon 的构建由 [桌面构建工作流](.github/workflows/desktop.yml) 生成，检查通过后提供安装包。发行草稿完成确认前，不替换当前稳定版。采集与构建方法见 [资源维护说明](app/tools/story-data/README.md)。
+基础阅读、查词、注音和笔记可以离线使用；联网更新和在线 AI 功能需要网络。采集与构建方法见 [资源维护说明](app/tools/story-data/README.md)。
 
 ## 从源码运行
 
@@ -40,20 +43,20 @@ cd Genshin-text-learning/app/frontend
 npm ci
 ```
 
-准备词典：从同一 Release 下载 `GenshinLangLearning-dictionary-v0.1.0.zip`，将其中的 `dict.db` 解压到 `app/crates/app/resources/`。也可在 `app/` 运行以下命令，从上游构建完整词典：
+在 `app/frontend/` 下载完整剧情和词典资源：
 
 ```bash
-node tools/build-dict/build-dict.mjs build
+npm run resources:prepare
 ```
 
-随后在 `app/frontend/` 启动或构建桌面应用：
+随后启动或构建桌面应用：
 
 ```bash
 npm run desktop
 npm run desktop:build
 ```
 
-完整开发说明、测试命令和配置方式见 [app/README.md](app/README.md)。原始需求见 [require.md](require.md)。v0.2.0 草稿的 Windows x64 与 macOS Apple Silicon 安装包已通过构建和启动检查，其中 Windows 已检查安装及断网首次使用。Linux 和 Intel Mac 尚未提供已验证的安装包。
+完整开发说明、测试命令和配置方式见 [app/README.md](app/README.md)。原始需求见 [require.md](require.md)。Windows x64 与 macOS Apple Silicon 安装包由 [桌面构建工作流](.github/workflows/desktop.yml) 生成并检查。Linux 和 Intel Mac 尚未提供已验证的安装包。
 
 ## 数据来源与许可
 

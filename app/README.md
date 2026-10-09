@@ -29,7 +29,7 @@ npm ci
 npm run desktop
 ```
 
-从 GitHub 获取源码后，先下载同一 Release 的独立词典压缩包，将 `dict.db` 放入 `crates/app/resources/`；也可以按下文说明重新构建完整词典。词典数据库作为 Release 附件分发，不存入 Git 仓库。
+从 GitHub 获取源码后，在 `frontend/` 执行 `npm run resources:prepare` 下载完整剧情和词典；也可以按下文说明重新构建完整词典。资源通过 Release 附件分发，不存入 Git 仓库。
 
 安装前端依赖时会自动复制注音词典。`desktop` 会启动前端服务和桌面程序，无需手工启动两个终端。
 
