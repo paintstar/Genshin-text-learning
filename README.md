@@ -53,7 +53,7 @@ npm run desktop
 npm run desktop:build
 ```
 
-完整开发说明、测试命令和配置方式见 [app/README.md](app/README.md)。原始需求见 [require.md](require.md)。Windows、Linux 和 Intel Mac 目前没有提供已验证的安装包。
+完整开发说明、测试命令和配置方式见 [app/README.md](app/README.md)。原始需求见 [require.md](require.md)。v0.2.0 草稿的 Windows x64 与 macOS Apple Silicon 安装包已通过构建和启动检查，其中 Windows 已检查安装及断网首次使用。Linux 和 Intel Mac 尚未提供已验证的安装包。
 
 ## 数据来源与许可
 

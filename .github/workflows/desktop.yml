@@ -6,6 +6,10 @@ on:
         description: 可选草稿 Release 标签，留空仅生成安装包
         type: string
         default: ''
+      build_run_id:
+        description: 可选已通过两端验收的构建编号，用于补传草稿附件
+        type: string
+        default: ''
   push:
     branches: [main]
     paths:
@@ -22,6 +26,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   resources:
+    if: inputs.build_run_id == ''
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -109,26 +114,68 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
   draft:
-    if: github.event_name == 'workflow_dispatch' && inputs.release_tag != ''
+    if: always() && github.event_name == 'workflow_dispatch' && inputs.release_tag != '' && (needs.build.result == 'success' || inputs.build_run_id != '')
     needs: build
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      actions: read
     steps:
       - uses: actions/checkout@v7.0.1
+      - name: 确认两端构建和验收通过
+        id: source
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BUILD_RUN_ID: ${{ inputs.build_run_id || github.run_id }}
+        run: |
+          [[ "$BUILD_RUN_ID" =~ ^[0-9]+$ ]] || exit 1
+          gh run view "$BUILD_RUN_ID" --json headSha,jobs,workflowName > build-run.json
+          python3 - <<'PY'
+          import json, os
+          with open('build-run.json') as source:
+              run = json.load(source)
+          expected = {'build (windows-latest, windows-x64, nsis)', 'build (macos-latest, macos-arm64, app)'}
+          passed = {job['name'] for job in run['jobs'] if job['conclusion'] == 'success'}
+          if run['workflowName'] != '构建离线桌面应用' or not expected.issubset(passed):
+              raise SystemExit('两端构建和验收必须全部通过，才能保存发行草稿')
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
+              output.write(f"sha={run['headSha']}\n")
+          PY
       - uses: actions/download-artifact@v8.0.2
         with:
           pattern: desktop-windows-x64
           path: distribution
           merge-multiple: true
+          run-id: ${{ inputs.build_run_id || github.run_id }}
+          github-token: ${{ github.token }}
       - uses: actions/download-artifact@v8.0.2
         with:
           pattern: desktop-macos-arm64
           path: distribution
           merge-multiple: true
+          run-id: ${{ inputs.build_run_id || github.run_id }}
+          github-token: ${{ github.token }}
       - name: 保存待确认的发行包
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ inputs.release_tag }}
+          BUILD_SHA: ${{ steps.source.outputs.sha }}
         run: |
-          gh release create "$RELEASE_TAG" distribution/* --draft --target "$GITHUB_SHA" --title "提瓦特 · 语旅 $RELEASE_TAG" --notes-file app/tools/ci/release-notes.md
+          installers=()
+          archives=()
+          while IFS= read -r -d '' file; do installers+=("$file"); done < <(find distribution -type f -name '*-setup.exe' -print0)
+          while IFS= read -r -d '' file; do archives+=("$file"); done < <(find distribution -type f -name '*-macos-arm64.zip' -print0)
+          [[ ${#installers[@]} == 1 && ${#archives[@]} == 1 ]] || { echo '需要各一份 Windows 和 macOS 安装包'; exit 1; }
+          if gh release view "$RELEASE_TAG" --json isDraft,targetCommitish > release.json; then
+            python3 - <<'PY'
+          import json, os
+          with open('release.json') as source:
+              release = json.load(source)
+          if not release['isDraft'] or release['targetCommitish'] != os.environ['BUILD_SHA']:
+              raise SystemExit('只能补传相同构建版本的发行草稿')
+          PY
+          else
+            gh release create "$RELEASE_TAG" --draft --target "$BUILD_SHA" --title "提瓦特 · 语旅 $RELEASE_TAG" --notes-file app/tools/ci/release-notes.md
+          fi
+          gh release upload "$RELEASE_TAG" "${installers[0]}" "${archives[0]}" --clobber
+          gh release view "$RELEASE_TAG" --json url,isDraft,assets
