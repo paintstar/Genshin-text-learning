@@ -1,6 +1,6 @@
 //! AiProfileRegistry — 配置注册表（技术设计 §7.1/§7.4 / 架构 §3.2）。
 //!
-//! 多套配置、单一生效不变量：同一时刻仅一行 is_active=1，切换由设置页显式完成。
+//! 多套配置、单一默认：同一时刻仅一行 is_active=1；请求可以临时选用其他配置。
 //! `config_fingerprint` = SHA256(影响输出的配置摘要，**不含密钥**)——channel、
 //! cli_kind、command_path、cli_version、base_url、model、extra 中影响输出的
 //! 生成参数。密钥本体经 store 的 SecretVault 存取，注册表只持引用。

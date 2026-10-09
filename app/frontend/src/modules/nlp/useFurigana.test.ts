@@ -3,8 +3,12 @@
  * 开关开启 → worker 分词 → annotateSentence → units；关闭/失败/过期一律回退 null。
  */
 
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { createPinia, setActivePinia } from 'pinia'
 import { ref } from 'vue'
+import { usePronunciationStore } from '@/stores/pronunciation'
+
+beforeEach(() => setActivePinia(createPinia()))
 
 const analyzeMock = vi.fn()
 
@@ -68,5 +72,16 @@ describe('useFurigana', () => {
     resolveFirst([tok('白夜国', 1, 'ビャクヤコク')]) // 旧结果迟到
     await flush()
     expect(units.value).toEqual([{ text: '夢', reading: 'ゆめ' }])
+  })
+
+  it('注音表更新后，同一句正文重新读取最新读音', async () => {
+    analyzeMock.mockResolvedValueOnce([tok('印', 1, 'シルシ')])
+    const units = useFurigana(() => '印', () => true)
+    await flush()
+    expect(units.value).toEqual([{ text: '印', reading: 'しるし' }])
+    analyzeMock.mockResolvedValueOnce([tok('印', 1, 'イン')])
+    usePronunciationStore().entries = [{ term: '印', reading: 'いん' }]
+    await flush()
+    expect(units.value).toEqual([{ text: '印', reading: 'いん' }])
   })
 })

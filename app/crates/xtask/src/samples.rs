@@ -6,7 +6,15 @@ use serde_json::{json, Value};
 
 pub fn samples() -> Vec<(&'static str, Value)> {
     vec![
-        ("story_resource_progress", serde_json::to_value(shared::dto::StoryResourceProgress { stage: "importing".into(), completed: 0, total: Some(1) }).unwrap()),
+        (
+            "story_resource_progress",
+            serde_json::to_value(shared::dto::StoryResourceProgress {
+                stage: "importing".into(),
+                completed: 0,
+                total: Some(1),
+            })
+            .unwrap(),
+        ),
         (
             "story_resource_info",
             serde_json::to_value(shared::dto::StoryResourceInfo {
@@ -233,7 +241,7 @@ pub fn samples() -> Vec<(&'static str, Value)> {
                 "id": 1, "name": "deepseek", "channel": "http", "cliKind": null,
                 "commandPath": null, "baseUrl": "https://api.deepseek.com/v1",
                 "model": "deepseek-chat", "extraJson": null, "cliVersion": null,
-                "configFingerprint": null, "isActive": true, "hasSecret": true
+                "configFingerprint": null, "isActive": true, "isAvailable": true, "hasSecret": true
             }),
         ),
         (

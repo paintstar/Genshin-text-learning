@@ -136,7 +136,10 @@ export interface Gateway {
   aiProfileDelete(id: number): Promise<void>
   aiProfileActivate(id: number): Promise<void>
   aiTestConnection(profileId: number): Promise<AiTestResult>
-  aiAskStart(feature: string, system: string, user: string, timeoutSecs?: number): Promise<number>
+  aiCliModels(commandPath?: string): Promise<string[]>
+  aiCliDetect(cliKind: 'claude' | 'codex' | 'opencode', commandPath?: string): Promise<string | null>
+  aiCliPick(): Promise<string | null>
+  aiAskStart(feature: string, system: string, user: string, timeoutSecs?: number, profileId?: number): Promise<number>
   aiAskCancel(requestId: number): Promise<boolean>
   onAiStream(cb: (e: AiStreamEvent) => void): Promise<() => void>
   aiNoteWriteGenerated(noteId: number, json: string): Promise<void>

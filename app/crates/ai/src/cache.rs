@@ -20,7 +20,13 @@ use std::sync::Arc;
 use tokio::sync::mpsc;
 
 /// 计算缓存键（红线：键含配置指纹——同 payload 不同指纹不得命中同一缓存）。
-pub fn cache_key(config_fingerprint: &str, feature: &str, tpl_version: &str, system: &str, user: &str) -> String {
+pub fn cache_key(
+    config_fingerprint: &str,
+    feature: &str,
+    tpl_version: &str,
+    system: &str,
+    user: &str,
+) -> String {
     let mut h = Sha256::new();
     h.update(config_fingerprint.as_bytes());
     h.update(b"\x1f");
@@ -49,10 +55,19 @@ impl AiClient for AiCache {
         req: AiRequest,
     ) -> Result<mpsc::Receiver<AiEvent>, AppError> {
         let fp = profile.config_fingerprint.clone().unwrap_or_default();
-        let key = cache_key(&fp, &req.feature, &req.prompt_tpl_version, &req.system, &req.user);
+        let key = cache_key(
+            &fp,
+            &req.feature,
+            &req.prompt_tpl_version,
+            &req.system,
+            &req.user,
+        );
         // 查缓存。
         let cached: Option<String> = {
-            let conn = self.conn.lock().map_err(|_| AppError::internal("缓存连接锁中毒"))?;
+            let conn = self
+                .conn
+                .lock()
+                .map_err(|_| AppError::internal("缓存连接锁中毒"))?;
             conn.query_row(
                 "SELECT response_text FROM ai_cache WHERE cache_key = ?1",
                 [&key],
@@ -79,8 +94,19 @@ impl AiClient for AiCache {
         let mut inner_rx = self.inner.ask(profile, secret, req).await?;
         let (tx, rx) = mpsc::channel(64);
         tokio::spawn(async move {
-            while let Some(ev) = inner_rx.recv().await {
-                if let AiEvent::Done { text, cached: false } = &ev {
+            loop {
+                let event = tokio::select! {
+                    _ = tx.closed() => break,
+                    event = inner_rx.recv() => event,
+                };
+                let Some(ev) = event else {
+                    break;
+                };
+                if let AiEvent::Done {
+                    text,
+                    cached: false,
+                } = &ev
+                {
                     // 仅成功完成且非空文本落缓存（失败/超时/取消一律不落）。
                     if !text.trim().is_empty() {
                         if let Ok(conn) = conn.lock() {
@@ -105,7 +131,10 @@ impl AiCache {
     /// 配置指纹变化时的惰性清理（profile 保存后异步调用）。
     pub fn lazy_cleanup(conn: &Connection, old_fingerprint: &str) -> Result<usize, AppError> {
         let n = conn
-            .execute("DELETE FROM ai_cache WHERE config_fingerprint = ?1", [old_fingerprint])
+            .execute(
+                "DELETE FROM ai_cache WHERE config_fingerprint = ?1",
+                [old_fingerprint],
+            )
             .map_err(crate::q)?;
         Ok(n)
     }
@@ -153,7 +182,10 @@ mod tests {
         let cache = AiCache {
             inner: Arc::new(StubClient::of(vec![
                 AiEvent::Delta("答".into()),
-                AiEvent::Done { text: "答案".into(), cached: false },
+                AiEvent::Done {
+                    text: "答案".into(),
+                    cached: false,
+                },
             ])),
             conn: c.clone(),
         };
@@ -186,7 +218,9 @@ mod tests {
                 break;
             }
         }
-        let n: i64 = c.lock().unwrap()
+        let n: i64 = c
+            .lock()
+            .unwrap()
             .query_row("SELECT COUNT(*) FROM ai_cache", [], |r| r.get(0))
             .unwrap();
         assert_eq!(n, 1);
@@ -213,7 +247,9 @@ mod tests {
         )
         .unwrap();
         assert_eq!(AiCache::lazy_cleanup(&c, "fp-old").unwrap(), 1);
-        let n: i64 = c.query_row("SELECT COUNT(*) FROM ai_cache", [], |r| r.get(0)).unwrap();
+        let n: i64 = c
+            .query_row("SELECT COUNT(*) FROM ai_cache", [], |r| r.get(0))
+            .unwrap();
         assert_eq!(n, 1);
     }
 }

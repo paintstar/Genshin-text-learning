@@ -5,6 +5,8 @@ import { useAiStore } from '@/stores/ai'
 import { useReaderStore } from '@/stores/reader'
 import { useMessage } from 'naive-ui'
 import { useRouter } from 'vue-router'
+import AssistantPicker from './AssistantPicker.vue'
+import AiMarkdownAnswer from './AiMarkdownAnswer.vue'
 const message = useMessage()
 const router = useRouter()
 
@@ -47,6 +49,7 @@ async function saveConv() {
 
 <template>
   <div class="ai-panel">
+    <AssistantPicker />
     <n-alert v-if="ai.availability === 'unconfigured'" type="default">
       配置语言助手后，可以结合剧情解释词义与句子结构。
       <n-button text type="primary" @click="router.push('/settings')"
@@ -54,29 +57,35 @@ async function saveConv() {
       >
     </n-alert>
     <template v-else>
+      <n-alert v-if="ai.availability === 'configured_unavailable'" type="warning">
+        当前配置尚未通过测试，或最近调用失败。请到偏好设置中测试并确认模型可用。
+        <n-button text type="primary" @click="router.push('/settings')">前往偏好设置</n-button>
+      </n-alert>
       <div class="turns">
         <div v-for="(t, i) in ai.turns" :key="i" class="turn" :class="t.role">
           <div class="bubble">
+            <div v-if="t.role === 'assistant'" class="answer-source">{{ t.profileName || ai.assistantName }}</div>
             <n-tag v-if="t.cached" size="tiny" type="success">缓存</n-tag>
             <n-tag v-if="t.streaming" size="tiny">生成中…</n-tag>
-            <pre class="content">{{ t.content }}</pre>
+            <AiMarkdownAnswer v-if="t.role === 'assistant'" :content="t.content" :animate="t.animate" :streaming="t.streaming" @finished="t.animate = false" />
+            <pre v-else class="content">{{ t.content }}</pre>
           </div>
         </div>
       </div>
       <n-alert v-if="ai.error" type="error"
-        >{{ ai.error }}（可重试；不影响基线功能）</n-alert
+        >{{ ai.error }}</n-alert
       >
       <div class="ask">
         <n-input
           v-model:value="question"
           type="textarea"
           :rows="2"
-          placeholder="输入你的语言问题（会附带当前跟读台词）"
+          :placeholder="`向${ai.assistantName}提问（会附带当前阅读台词）`"
           @keydown.enter.exact.prevent="ask"
         />
         <n-button
           type="primary"
-          :disabled="!ai.canUseAi || !question.trim()"
+          :disabled="!ai.canUseAi || !question.trim() || ai.busy"
           :loading="ai.turns.some((t) => t.streaming)"
           @click="ask"
           >提问</n-button
@@ -108,6 +117,8 @@ async function saveConv() {
   padding: 8px;
   max-width: 100%;
 }
+.turn { min-width: 0; max-width: 100%; }
+.answer-source { font-weight: 600; color: var(--green); margin-bottom: 8px; }
 .content {
   margin: 0;
   white-space: pre-wrap;

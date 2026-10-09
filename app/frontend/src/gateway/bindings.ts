@@ -27,6 +27,7 @@ export interface AiProfileDto {
   hasSecret: boolean
   id: number
   isActive: boolean
+  isAvailable: boolean
   model: string
   name: string
 }

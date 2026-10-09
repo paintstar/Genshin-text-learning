@@ -62,8 +62,15 @@ fn main() {
                 let handle = app.handle().clone();
                 tauri::async_runtime::spawn_blocking(move || {
                     let progress_handle = handle.clone();
-                    let progress: app_lib::resources::ProgressCallback = std::sync::Arc::new(move |progress| { let _ = progress_handle.emit("story-resource-progress", progress); });
-                    if let Err(error) = app_lib::resources::import_bundled_with_progress(&st, &story_pack, &progress) {
+                    let progress: app_lib::resources::ProgressCallback =
+                        std::sync::Arc::new(move |progress| {
+                            let _ = progress_handle.emit("story-resource-progress", progress);
+                        });
+                    if let Err(error) = app_lib::resources::import_bundled_with_progress(
+                        &st,
+                        &story_pack,
+                        &progress,
+                    ) {
                         eprintln!("随包剧情导入失败：{}", error.message);
                     }
                     drop(operation);
@@ -113,6 +120,9 @@ fn main() {
             app_lib::commands::ai_profile_delete,
             app_lib::commands::ai_profile_activate,
             app_lib::commands::ai_test_connection,
+            app_lib::commands::ai_cli_models,
+            app_lib::commands::ai_cli_detect,
+            app_lib::commands::ai_cli_pick,
             app_lib::commands::ai_ask_start,
             app_lib::commands::ai_ask_cancel,
             app_lib::commands::ai_note_write_generated,

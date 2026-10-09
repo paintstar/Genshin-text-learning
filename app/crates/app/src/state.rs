@@ -101,12 +101,22 @@ pub struct AppState {
     pub cancels: CancelRegistry,
     pub request_counter: AtomicU64,
     pub dict_db_path: PathBuf,
-    /// CLI 适配器（启用验证直连，不经缓存装饰）。
-    pub ai_cli_raw: Arc<ai::cli::CliAdapter>,
+    /// 连接测试使用真实通道，不经缓存装饰。
+    pub ai_client_raw: Arc<dyn ai::AiClient>,
 }
 
 impl AppState {
-    /// 当前生效 AI 配置（无 → 未配置三态）。
+    pub fn selected_profile(&self, id: Option<i64>) -> Result<Option<AiProfileRow>, AppError> {
+        match id {
+            Some(id) => self.store.with_read(|connection| {
+                Ok(ai::AiProfileRegistry::list(connection)?
+                    .into_iter()
+                    .find(|profile| profile.id == id))
+            }),
+            None => self.active_profile(),
+        }
+    }
+    /// 默认 AI 配置（无 → 未配置三态）。
     pub fn active_profile(&self) -> Result<Option<AiProfileRow>, AppError> {
         self.store
             .with_read(|c| ai::AiProfileRegistry::get_active(c))

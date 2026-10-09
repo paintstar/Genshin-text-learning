@@ -115,7 +115,7 @@ pub fn compose(args: ComposeArgs) -> Result<Arc<AppState>, AppError> {
             .map_err(|e| AppError::internal(format!("缓存连接打开失败: {e}")))?,
     ));
     let ai_client: Arc<dyn ai::AiClient> = Arc::new(ai::AiCache {
-        inner: dispatch,
+        inner: dispatch.clone(),
         conn: cache_conn,
     });
 
@@ -139,7 +139,7 @@ pub fn compose(args: ComposeArgs) -> Result<Arc<AppState>, AppError> {
         cancels: crate::cancel::CancelRegistry::default(),
         request_counter: AtomicU64::new(1),
         dict_db_path: args.dict_db_path,
-        ai_cli_raw: cli_adapter,
+        ai_client_raw: dispatch,
     }))
 }
 

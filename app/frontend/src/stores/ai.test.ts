@@ -9,23 +9,25 @@ import { createPinia, setActivePinia } from 'pinia'
 import { setGateway } from '@/gateway/provider'
 import { useAiStore } from './ai'
 import type { Gateway } from '@/gateway'
-import type { AiStreamEvent } from '@/gateway/bindings'
+import type { AiProfileDto, AiStreamEvent } from '@/gateway/bindings'
 
 type StreamCb = (e: AiStreamEvent) => void
 
 function stubGateway(opts: {
   state?: string
   askStartError?: Error
-}): { streamCb: () => StreamCb | null; off: ReturnType<typeof vi.fn> } {
+  profiles?: AiProfileDto[]
+}): { streamCb: () => StreamCb | null; off: ReturnType<typeof vi.fn>; askStart: ReturnType<typeof vi.fn> } {
   let cb: StreamCb | null = null
   const off = vi.fn()
+  const askStart = vi.fn(async () => {
+    if (opts.askStartError) throw opts.askStartError
+    return 42
+  })
   const gw = {
     aiState: async () => opts.state ?? 'configured_available',
-    aiProfileList: async () => [],
-    aiAskStart: async () => {
-      if (opts.askStartError) throw opts.askStartError
-      return 42
-    },
+    aiProfileList: async () => (opts.profiles ?? []).map((profile) => ({ ...profile })),
+    aiAskStart: askStart,
     onAiStream: async (fn: StreamCb) => {
       cb = fn
       return off as unknown as () => void
@@ -33,7 +35,7 @@ function stubGateway(opts: {
     aiConversationSave: async () => 7,
   } as unknown as Gateway
   setGateway(gw)
-  return { streamCb: () => cb, off }
+  return { streamCb: () => cb, off, askStart }
 }
 
 function ev(partial: Partial<AiStreamEvent> & { kind: string }): AiStreamEvent {
@@ -132,4 +134,42 @@ describe('ai store：会话显式保存与清理', () => {
     expect(ai.savedConversationId).toBeNull()
     expect(ai.error).toBeNull()
   })
+})
+
+it('自动用默认助手，临时切换传正确配置，已有回答保留来源，恢复后仍用默认', async () => {
+  const profiles = [
+    { id: 1, name: '默认老师', isActive: true, isAvailable: true },
+    { id: 2, name: '语法老师', isActive: false, isAvailable: true },
+  ] as AiProfileDto[]
+  const { askStart, streamCb } = stubGateway({ profiles })
+  const ai = useAiStore()
+  await ai.refreshState()
+  expect(ai.selectedProfileId).toBe(1)
+  await ai.ask('sentence_explain', 'sys', '句子')
+  expect(askStart).toHaveBeenLastCalledWith('sentence_explain', 'sys', '句子', undefined, 1)
+  streamCb()!(ev({ kind: 'done', text: '回答一' }))
+  await ai.refreshState()
+  ai.selectProfile(2)
+  await ai.ask('sentence_explain', 'sys', '下一句')
+  expect(askStart).toHaveBeenLastCalledWith('sentence_explain', 'sys', '下一句', undefined, 2)
+  expect(ai.turns[1].profileName).toBe('默认老师')
+  expect(ai.turns[3].profileName).toBe('语法老师')
+  streamCb()!(ev({ kind: 'done', text: '回答二' }))
+  await ai.refreshState()
+  expect(ai.selectedProfileId).toBe(2)
+  ai.useDefaultProfile()
+  expect(ai.selectedProfileId).toBe(1)
+  profiles[0].isActive = false
+  profiles[1].isActive = true
+  await ai.refreshState()
+  expect(ai.selectedProfileId).toBe(2)
+})
+
+it('未通过测试的助手不可发起分析', async () => {
+  const { askStart } = stubGateway({ profiles: [{ id: 1, name: '未测试', isActive: true, isAvailable: false }] as AiProfileDto[] })
+  const ai = useAiStore()
+  await ai.ask('sentence_explain', 'sys', '句子')
+  expect(askStart).not.toHaveBeenCalled()
+  expect(ai.turns).toHaveLength(0)
+  expect(ai.error).toContain('测试助手')
 })

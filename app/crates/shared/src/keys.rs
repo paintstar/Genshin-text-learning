@@ -16,8 +16,12 @@ pub const SETTINGS_KEYS: &[(&str, &str)] = &[
     ("fetch.custom_headers_json", "{}"),
     // AI 调用超时（秒）。
     ("ai.timeout_secs", "120"),
+    // 已经通过真实连接测试的配置指纹，配置变更后需要重新测试。
+    ("ai.verified_profiles", "{}"),
     // 阅读器：注音默认开关。
     ("reader.furigana_enabled", "true"),
+    // 用户自定义注音表；内置术语读音随应用提供，不写入用户数据。
+    ("reader.custom_pronunciations", "[]"),
     ("reader.mode", "overview"),
     ("reader.display_language", "both"),
     ("reader.traveler", "M"),

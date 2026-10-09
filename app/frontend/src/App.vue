@@ -7,6 +7,7 @@ import { useSettingsStore } from '@/stores/settings'
 import { useDownloadsStore } from '@/stores/downloads'
 import DownloadPanel from '@/components/DownloadPanel.vue'
 import { usePreferencesStore } from '@/stores/preferences'
+import { usePronunciationStore } from '@/stores/pronunciation'
 import { initThemeController } from '@/modules/theme/themeController'
 import { initUiFontController } from '@/modules/ui/uiFontController'
 import { naiveThemeFor, themeOverridesFor } from '@/modules/theme/themeOverrides'
@@ -24,6 +25,8 @@ void downloads.refresh()
 const reader = useReaderStore()
 const readingHistory = useReadingHistoryStore()
 void readingHistory.load()
+const pronunciations = usePronunciationStore()
+void pronunciations.load()
 const preferences = usePreferencesStore()
 const themeController = initThemeController(preferences)
 const uiFontController = initUiFontController(preferences)
@@ -151,8 +154,8 @@ watch(
               <p>让每段旅程，<br />留下学会的话。</p>
               <span>听见故事，也读懂语言。</span>
             </div>
-            <button class="ai-entry" @click="showAi = true">
-              <AppIcon name="spark" /><span>语言助手</span
+            <button class="ai-entry" :aria-label="ai.assistantName" :title="ai.assistantName" @click="showAi = true">
+              <AppIcon name="spark" /><span>{{ ai.assistantName }}</span
               ><i :class="{ online: ai.canUseAi }"></i>
             </button>
             <router-link
@@ -198,8 +201,8 @@ watch(
           </main>
         </div>
       </div>
-      <n-drawer v-model:show="showAi" :width="440" placement="right"
-        ><n-drawer-content title="语言助手"
+      <n-drawer v-model:show="showAi" :width="560" placement="right" @after-leave="ai.useDefaultProfile()"
+        ><n-drawer-content :title="ai.assistantName" closable
           ><AiPanel v-if="showAi" /></n-drawer-content
       ></n-drawer>
     </n-message-provider>

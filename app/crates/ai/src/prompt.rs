@@ -41,7 +41,14 @@ impl AiPromptCatalog {
     }
 
     /// ① 语境化划词解析：选中词 + 所在句（jp）+ 官方中译 + 说话人 + 任务名 + 本地分词/词典结果。
-    pub fn build_ctx_parse(word: &str, sentence_jp: &str, official_chs: &str, role: &str, quest_title: &str, local_analysis: &str) -> (String, String) {
+    pub fn build_ctx_parse(
+        word: &str,
+        sentence_jp: &str,
+        official_chs: &str,
+        role: &str,
+        quest_title: &str,
+        local_analysis: &str,
+    ) -> (String, String) {
         let system = "你是日语学习助手。用户正在阅读《原神》日文剧情文本学习日语。请针对选中词在当前台词语境中的含义给出讲解：一词多义取舍、口语缩略与音变还原、惯用表达的字面义与实际义、语体色彩。用中文回答，简洁分点。";
         let user = format!(
             "任务：{quest_title}\n说话人：{role}\n日文原句：{sentence_jp}\n官方中译：{official_chs}\n选中词：{word}\n本地分词与词典结果：{local_analysis}\n\n请给出该词在此句语境中的含义与用法。"
@@ -50,8 +57,13 @@ impl AiPromptCatalog {
     }
 
     /// ② 整句讲解：整句 jp + 中译 + 说话人/任务。
-    pub fn build_sentence_explain(sentence_jp: &str, official_chs: &str, role: &str, quest_title: &str) -> (String, String) {
-        let system = "你是日语学习助手。请对下列《原神》台词做整句讲解，至少涵盖：句子结构拆解（成分、活用形、敬语程度）、逐段直译与官方译文对照（解释官方翻译为什么这样处理、哪里是意译）、该句的语言点提炼。用中文回答。";
+    pub fn build_sentence_explain(
+        sentence_jp: &str,
+        official_chs: &str,
+        role: &str,
+        quest_title: &str,
+    ) -> (String, String) {
+        let system = "你是日语学习助手。请用中文分析完整台词的语法结构：先概括句意，再按分句拆解主语、谓语、宾语、修饰关系和省略成分；说明助词作用、活用形、语法句型、敬语与语气；逐段直译并对照官方中译，最后总结可复用的语言点。引用对应日文片段，不要只逐词列释义。";
         let user = format!("任务：{quest_title}\n说话人：{role}\n日文原句：{sentence_jp}\n官方中译：{official_chs}");
         (system.to_string(), user)
     }
@@ -85,7 +97,11 @@ impl AiPromptCatalog {
     }
 
     /// ⑧ 剧情语境问答：当前窗口台词（jp+chs）+ 任务名 + 用户提问。
-    pub fn build_story_qa(quest_title: &str, window_lines: &str, question: &str) -> (String, String) {
+    pub fn build_story_qa(
+        quest_title: &str,
+        window_lines: &str,
+        question: &str,
+    ) -> (String, String) {
         let system = "你是日语学习助手，正在陪用户阅读《原神》剧情文本。基于提供的台词上下文回答语言问题（语法、用词、角色说话风格等）。回答用中文，引用原文时给出日文原句。";
         let user = format!("任务：{quest_title}\n\n当前台词（日文/中文对照）：\n{window_lines}\n\n用户提问：{question}");
         (system.to_string(), user)
@@ -97,12 +113,19 @@ static SPECS: &[PromptSpec] = &[
         feature: FEATURE_CTX_PARSE,
         tpl_version: "1",
         system: "",
-        privacy_list: &["选中词", "所在句（日文）", "官方中译", "说话人", "任务名", "本地分词与词典结果"],
+        privacy_list: &[
+            "选中词",
+            "所在句（日文）",
+            "官方中译",
+            "说话人",
+            "任务名",
+            "本地分词与词典结果",
+        ],
         batch: None,
     },
     PromptSpec {
         feature: FEATURE_SENTENCE,
-        tpl_version: "1",
+        tpl_version: "2",
         system: "",
         privacy_list: &["整句（日文）", "官方中译", "说话人", "任务名"],
         batch: None,
@@ -173,7 +196,9 @@ mod tests {
         assert!(features.contains(&FEATURE_NOTE_SUMMARY));
         assert!(features.contains(&FEATURE_QUIZ));
         assert!(features.contains(&FEATURE_STORY_QA));
-        assert!(!features.iter().any(|f| f.contains("pair") || f.contains("任意")));
+        assert!(!features
+            .iter()
+            .any(|f| f.contains("pair") || f.contains("任意")));
         assert!(!SPECS.is_empty());
         for s in SPECS {
             assert!(!s.privacy_list.is_empty(), "每功能必须有默认发送内容清单");
@@ -182,7 +207,14 @@ mod tests {
 
     #[test]
     fn ctx_parse_prompt_matches_privacy_list() {
-        let (sys, user) = AiPromptCatalog::build_ctx_parse("大丈夫", "大丈夫、心配ないよ", "没关系，不用担心", "パイモン", "白夜国浮世画天梦", "[分词结果]");
+        let (sys, user) = AiPromptCatalog::build_ctx_parse(
+            "大丈夫",
+            "大丈夫、心配ないよ",
+            "没关系，不用担心",
+            "パイモン",
+            "白夜国浮世画天梦",
+            "[分词结果]",
+        );
         assert!(user.contains("大丈夫") && user.contains("心配ないよ") && user.contains("任务"));
         assert!(!sys.is_empty());
     }

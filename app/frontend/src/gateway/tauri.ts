@@ -196,8 +196,15 @@ export class TauriGateway implements Gateway {
   async aiTestConnection(profileId: number): Promise<AiTestResult> {
     return call('ai_test_connection', { profileId })
   }
-  async aiAskStart(feature: string, system: string, user: string, timeoutSecs?: number): Promise<number> {
-    return call('ai_ask_start', { feature, system, user, timeoutSecs: timeoutSecs ?? null })
+  async aiCliModels(commandPath?: string): Promise<string[]> {
+    return call('ai_cli_models', { commandPath: commandPath || null })
+  }
+  async aiCliDetect(cliKind: 'claude' | 'codex' | 'opencode', commandPath?: string): Promise<string | null> {
+    return call('ai_cli_detect', { cliKind, commandPath: commandPath || null })
+  }
+  async aiCliPick(): Promise<string | null> { return call('ai_cli_pick', {}) }
+  async aiAskStart(feature: string, system: string, user: string, timeoutSecs?: number, profileId?: number): Promise<number> {
+    return call('ai_ask_start', { feature, system, user, timeoutSecs: timeoutSecs ?? null, profileId: profileId ?? null })
   }
   async aiAskCancel(requestId: number): Promise<boolean> {
     return call('ai_ask_cancel', { requestId })

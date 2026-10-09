@@ -381,6 +381,9 @@ export class MockGateway implements Gateway {
   async aiTestConnection(): Promise<AiTestResult> {
     return { ok: false, message: 'mock 未配置 AI', rawOutput: null }
   }
+  async aiCliModels(): Promise<string[]> { return [] }
+  async aiCliDetect(): Promise<string | null> { return null }
+  async aiCliPick(): Promise<string | null> { return null }
   async aiAskStart() {
     return 1
   }

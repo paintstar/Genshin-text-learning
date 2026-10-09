@@ -10,13 +10,17 @@
 import { ref, watchEffect, type Ref } from 'vue'
 import { annotateSentence, type FuriganaUnit } from './furigana'
 import { sharedAnalyzer } from './instance'
+import { usePronunciationStore } from '@/stores/pronunciation'
 
 export function useFurigana(text: () => string, enabled: () => boolean): Ref<FuriganaUnit[] | null> {
   const units = ref<FuriganaUnit[] | null>(null)
+  const pronunciations = usePronunciationStore()
   let seq = 0
   watchEffect(async () => {
     const t = text()
     const on = enabled()
+    // 读音表加载或编辑后，当前正文立即重新注音。
+    void pronunciations.entries
     const mine = ++seq
     if (!on || !t) {
       units.value = null

@@ -6,6 +6,7 @@
  */
 import type { SelectionResult } from '@/modules/nlp/selectionAnalyzer'
 import type { AiAvailability } from '@/gateway/bindings'
+import AssistantPicker from './AssistantPicker.vue'
 
 defineProps<{
   result: SelectionResult | null
@@ -13,6 +14,7 @@ defineProps<{
   aiAvailability: AiAvailability
   sentenceJp: string
   sentenceChs: string
+  aiBusy?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -33,6 +35,25 @@ const emit = defineEmits<{
     @close="emit('close')"
     closable
   >
+    <div v-if="sentenceJp || sentenceChs" class="sentence-section">
+      <div class="sentence-label">当前整句</div>
+      <p v-if="sentenceJp" class="sentence-text" lang="ja">{{ sentenceJp }}</p>
+      <p v-if="sentenceChs" class="sentence-translation">{{ sentenceChs }}</p>
+      <AssistantPicker />
+      <div class="sentence-actions">
+        <n-button
+          v-if="sentenceJp"
+          size="small"
+          type="primary"
+          :disabled="aiAvailability !== 'configured_available' || aiBusy"
+          :loading="aiBusy"
+          @click="emit('aiSentence')"
+        >AI 整句语法分析</n-button>
+        <n-button size="small" @click="emit('noteSentence')">收藏整句</n-button>
+      </div>
+      <p v-if="aiAvailability === 'unconfigured'" class="empty">先在偏好设置中配置语言助手，即可分析句子结构。</p>
+      <p v-else-if="aiAvailability === 'configured_unavailable'" class="empty">请先在偏好设置中测试所选助手。</p>
+    </div>
     <n-spin :show="loading">
       <div v-if="result">
         <div class="token-map">
@@ -122,24 +143,11 @@ const emit = defineEmits<{
               size="tiny"
               type="primary"
               ghost
+              :disabled="aiBusy"
               @click="emit('aiContext', result.selectedRange[0] + i)"
               >AI 语境解析</n-button
             >
           </div>
-        </div>
-        <n-divider style="margin: 8px 0" />
-        <div class="sentence-actions">
-          <n-button size="tiny" @click="emit('noteSentence')"
-            >收藏整句</n-button
-          >
-          <n-button
-            v-if="aiAvailability === 'configured_available'"
-            size="tiny"
-            type="primary"
-            ghost
-            @click="emit('aiSentence')"
-            >AI 讲解本句</n-button
-          >
         </div>
       </div>
       <div
@@ -208,8 +216,17 @@ const emit = defineEmits<{
 }
 .sentence-actions {
   display: flex;
+  flex-wrap: wrap;
   gap: 6px;
 }
+.sentence-section {
+  padding-bottom: 16px;
+  margin-bottom: 12px;
+  border-bottom: 1px solid var(--line-soft);
+}
+.sentence-label { color: var(--muted); font-size: calc(12px * var(--ui-font-scale, 1)); }
+.sentence-text { margin: 8px 0; line-height: 1.8; }
+.sentence-translation { color: var(--muted); margin: 8px 0 12px; font-size: calc(12px * var(--ui-font-scale, 1)); }
 .empty {
   color: var(--text-faint);
 }

@@ -5,6 +5,7 @@
 //! 首启索引同步 BootstrapService、两阶段更新 UpdateService、全量同步
 //! BatchSyncService、出处核对编排、按任务回顾 DTO 组装、AI 结果沉淀编排）。
 
+pub mod ai_connection;
 pub mod cancel;
 pub mod commands;
 pub mod composition;

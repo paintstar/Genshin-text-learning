@@ -461,6 +461,8 @@ pub struct AiProfileDto {
     pub cli_version: Option<String>,
     pub config_fingerprint: Option<String>,
     pub is_active: bool,
+    /// 当前配置是否通过真实模型连接测试。
+    pub is_available: bool,
     /// 是否已录入密钥（密钥本体存 OS 凭据库，不入 app.db）。
     pub has_secret: bool,
 }

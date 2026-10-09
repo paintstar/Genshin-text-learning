@@ -12,8 +12,10 @@
 pub mod cache;
 pub mod cli;
 pub mod client;
+pub mod connection;
 pub mod conversation;
 pub mod dispatch;
+pub mod executable;
 pub mod guard;
 pub mod http;
 pub mod profile;

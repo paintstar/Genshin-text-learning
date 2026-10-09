@@ -170,7 +170,7 @@ describe('全局字号 CSS 消费点同源锁定', () => {
       new URL('../../components/SelectionPopup.vue', import.meta.url),
       'utf8',
     )
-    expect(popup.match(/--ui-font-scale/g)?.length).toBe(3)
+    expect(popup.match(/--ui-font-scale/g)?.length).toBe(5)
     const settings = readFileSync(
       new URL('../../views/SettingsView.vue', import.meta.url),
       'utf8',

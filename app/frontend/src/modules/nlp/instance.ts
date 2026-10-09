@@ -7,5 +7,11 @@
 import { CachedAnalyzer } from './analyzer'
 import { WorkerAnalyzer } from './workerClient'
 import { TermReadingAnalyzer } from './termReadings'
+import { usePronunciationStore } from '@/stores/pronunciation'
 
-export const sharedAnalyzer = new CachedAnalyzer(new TermReadingAnalyzer(new WorkerAnalyzer()))
+// 只缓存原始分词，自定义表更新后每次查询都会应用最新读音。
+export const sharedAnalyzer = new TermReadingAnalyzer(
+  new CachedAnalyzer(new WorkerAnalyzer()),
+  undefined,
+  () => usePronunciationStore().entries,
+)

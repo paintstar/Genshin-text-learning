@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useMessage } from 'naive-ui'
 import { useSettingsStore } from '@/stores/settings'
 import { useDownloadsStore } from '@/stores/downloads'
@@ -7,7 +7,9 @@ import { useAiStore } from '@/stores/ai'
 import { getGateway } from '@/gateway/provider'
 import type { AiProfileDto, AiProfileInput } from '@/gateway/bindings'
 import AppearanceSettings from './AppearanceSettings.vue'
+import PronunciationSettings from './PronunciationSettings.vue'
 import StoryResourceStatus from '@/components/StoryResourceStatus.vue'
+import CliExecutableSettings from '@/components/CliExecutableSettings.vue'
 const settings = useSettingsStore()
 const downloads = useDownloadsStore()
 const ai = useAiStore()
@@ -19,6 +21,8 @@ const backupPath = ref('')
 const restorePath = ref('')
 const restoreMessage = ref('')
 const testResult = ref('')
+const testPassed = ref<boolean | null>(null)
+const cliModels = ref<string[]>([])
 const emptyProfile = (): AiProfileInput => ({
   id: null,
   name: '',
@@ -31,6 +35,8 @@ const emptyProfile = (): AiProfileInput => ({
   apiKey: null,
 })
 const editing = ref(emptyProfile())
+const commandExample = computed(() => editing.value.cliKind === 'claude' ? 'claude' : editing.value.cliKind || 'codex')
+watch(() => [editing.value.commandPath, editing.value.cliKind], () => { cliModels.value = [] })
 onMounted(async () => {
   await settings.refreshInit()
   updateUrls.value = settings.updateUrls.join('\n')
@@ -51,7 +57,7 @@ async function connectSource() {
   if (settings.init?.termsAccepted) await settings.bootstrap()
 }
 async function saveProfile() {
-  if (!editing.value.name.trim() || !editing.value.model.trim()) {
+  if (!editing.value.name.trim() || (!editing.value.model.trim() && !(editing.value.channel === 'cli' && editing.value.cliKind === 'opencode'))) {
     message.warning('请填写配置名称和模型名称。')
     return
   }
@@ -62,19 +68,23 @@ async function saveProfile() {
     message.warning('请填写有效的 API 地址。')
     return
   }
-  if (editing.value.channel === 'cli' && !editing.value.commandPath?.trim()) {
-    message.warning('请填写 CLI 命令或路径。')
-    return
-  }
+  let savedId: number | undefined
   await run(async () => {
-    const id = await getGateway().aiProfileSave(editing.value)
+    const input = { ...editing.value, commandPath: editing.value.channel === 'cli' ? editing.value.commandPath?.trim() || null : null }
+    const id = await getGateway().aiProfileSave(input)
     editing.value.apiKey = null
     editing.value.id = id
     await ai.refreshState()
-    message.success('配置已保存，可测试连接后启用。')
+    savedId = id
+    testResult.value = ''
+    testPassed.value = null
+    message.success('配置已保存，测试成功后可设为默认助手。')
   })
+  return savedId
 }
 function editProfile(p: AiProfileDto) {
+  testResult.value = ''
+  testPassed.value = null
   editing.value = {
     id: p.id,
     name: p.name,
@@ -91,7 +101,7 @@ async function activate(id: number) {
   await run(async () => {
     await getGateway().aiProfileActivate(id)
     await ai.refreshState()
-    message.success('已启用此配置')
+    message.success('已设为默认助手')
   })
 }
 async function removeProfile(id: number) {
@@ -102,9 +112,34 @@ async function removeProfile(id: number) {
   })
 }
 async function testConnection(p: AiProfileDto) {
+  testResult.value = `正在测试「${p.name}」：调用所选模型，等待完整回答…`
+  testPassed.value = null
   await run(async () => {
-    const r = await getGateway().aiTestConnection(p.id)
-    testResult.value = `${r.ok ? '连接成功' : '连接失败'}：${r.message}`
+    let r
+    try {
+      r = await getGateway().aiTestConnection(p.id)
+    } catch (e: any) {
+      testPassed.value = false
+      testResult.value = `「${p.name}」测试失败：${e?.message || '未能完成模型调用，请重试。'}`
+      return
+    }
+    testResult.value = `「${p.name}」${r.ok ? '测试成功' : '测试失败'}：${r.message}`
+    testPassed.value = r.ok
+    await ai.refreshState()
+    const updated = ai.profiles.find((profile) => profile.id === p.id)
+    if (updated && editing.value.id === p.id) editing.value.model = updated.model
+  })
+}
+async function saveAndTest() {
+  const id = await saveProfile()
+  const profile = ai.profiles.find((profile) => profile.id === id)
+  if (profile) await testConnection(profile)
+}
+async function readCliModels() {
+  await run(async () => {
+    cliModels.value = await getGateway().aiCliModels(editing.value.commandPath || undefined)
+    if (!cliModels.value.length) message.warning('未找到可用模型，请先在 OpenCode 中配置模型服务。')
+    else message.success(`已读取 ${cliModels.value.length} 个模型。`)
   })
 }
 async function backup() {
@@ -141,6 +176,7 @@ async function restore() {
         v-for="tab in [
           { value: 'data', label: '剧情与词典' },
           { value: 'appearance', label: '界面外观' },
+          { value: 'pronunciation', label: '注音表' },
           { value: 'ai', label: '语言助手' },
           { value: 'backup', label: '备份与恢复' },
           { value: 'about', label: '关于' },
@@ -265,12 +301,16 @@ async function restore() {
     <div v-if="section === 'appearance'" class="settings-stack">
       <AppearanceSettings />
     </div>
+    <div v-if="section === 'pronunciation'" class="settings-stack">
+      <PronunciationSettings />
+    </div>
     <div v-if="section === 'ai'" class="settings-stack">
       <n-card title="语言助手 · 可选" size="small"
         ><p class="setting-copy">
           配置后可获得词语语境解析和句子讲解。使用云端模型时，你主动选择的台词与提问会发送给对应服务。API
           密钥保存在系统凭据库中。
         </p>
+        <p class="setting-copy">默认助手会自动用于每次新分析；需要时可在分析面板临时切换。</p>
         <div
           v-for="profile in ai.profiles"
           :key="profile.id"
@@ -283,7 +323,7 @@ async function restore() {
               size="small"
               type="success"
               style="margin-left: 8px"
-              >使用中</n-tag
+              >默认助手</n-tag
             >
             <p class="setting-copy" style="margin: 5px 0">
               {{ profile.channel === 'cli' ? profile.cliKind : 'API' }} ·
@@ -305,7 +345,7 @@ async function restore() {
               size="small"
               :disabled="actionBusy || profile.isActive"
               @click="activate(profile.id)"
-              >启用</n-button
+              >设为默认</n-button
             ><n-popconfirm @positive-click="removeProfile(profile.id)"
               ><template #trigger
                 ><n-button size="small" quaternary>删除</n-button></template
@@ -313,7 +353,7 @@ async function restore() {
             ></n-space
           >
         </div>
-        <n-alert v-if="testResult" style="margin-top: 15px">{{
+        <n-alert v-if="testResult" :type="testPassed === null ? 'info' : testPassed ? 'success' : 'error'" style="margin-top: 15px">{{
           testResult
         }}</n-alert></n-card
       ><n-card
@@ -357,18 +397,25 @@ async function restore() {
                     { label: 'Claude Code', value: 'claude' },
                     { label: 'OpenCode', value: 'opencode' },
                   ]" /></n-form-item
-              ><n-form-item label="命令或路径"
-                ><n-input
-                  v-model:value="editing.commandPath"
-                  placeholder="例如 codex"
-              /></n-form-item></div></template
-          ><n-form-item label="模型名称"
-            ><n-input
+              ><n-form-item label="本机程序"
+                ><CliExecutableSettings :kind="editing.cliKind || 'codex'" v-model:value="editing.commandPath" :disabled="actionBusy" />
+              </n-form-item></div></template
+          ><p v-if="editing.channel === 'cli'" class="setting-copy">自动查找本机 {{ commandExample }}，并使用已有登录信息。通常无需填写程序路径；找不到时可以选择文件。编辑后点击「保存并测试」，测试会调用一次所选模型。</p>
+          <n-form-item label="模型名称">
+            <template v-if="editing.channel === 'cli' && editing.cliKind === 'opencode'">
+              <div class="model-picker">
+                <n-select v-model:value="editing.model" filterable tag clearable :options="cliModels.map((model) => ({ label: model, value: model }))" placeholder="选择或输入 服务商/模型；留空使用 OpenCode 默认模型" @update:value="editing.model = $event || ''" />
+                <n-button :loading="actionBusy" :disabled="actionBusy" @click="readCliModels">读取本机模型</n-button>
+              </div>
+            </template>
+            <n-input v-else
               v-model:value="editing.model"
-              placeholder="填写你的服务支持的模型名称" /></n-form-item
+              placeholder="填写你的服务支持的模型名称" />
+          </n-form-item
           ><n-space
             ><n-button type="primary" :loading="actionBusy" @click="saveProfile"
               >保存配置</n-button
+            ><n-button :loading="actionBusy" :disabled="actionBusy" @click="saveAndTest">保存并测试</n-button
             ><n-button v-if="editing.id" @click="editing = emptyProfile()"
               >新建另一套配置</n-button
             ></n-space
@@ -472,6 +519,13 @@ async function restore() {
   grid-template-columns: 1fr 1fr;
   gap: 20px;
 }
+.model-picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  width: 100%;
+}
+.model-picker > .n-select { flex: 1; min-width: 200px; }
 .profile-row {
   display: flex;
   justify-content: space-between;

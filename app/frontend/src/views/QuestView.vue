@@ -339,12 +339,14 @@ async function noteSentence() {
   })
 }
 
-async function aiContext(_tokenIndex: number) {
+async function aiContext(tokenIndex: number) {
   if (!currentRow.value || !selection.value) return
+  const hit = selection.value.hits[tokenIndex - selection.value.selectedRange[0]]
+  if (!hit) return
   const local = windowLinesFor(currentRow.value.row)
   const system =
     '你是日语学习助手。请针对选中词在当前台词语境中的含义给出讲解：一词多义取舍、口语缩略还原、惯用表达、语体色彩。用中文简洁分点。'
-  const user = `日文原句：${local.jp}\n官方中译：${local.chs}\n${selection.value.hits.map((h) => `选中词：${h.token.surface}`).join('\n')}`
+  const user = `任务：${title.value}\n说话人：${currentRow.value.row.jp?.role || currentRow.value.row.chs?.role || ''}\n日文原句：${local.jp}\n官方中译：${local.chs}\n选中词：${hit.token.surface}`
   showAi.value = true
   await ai.ask('ctx_parse', system, user)
 }
@@ -353,8 +355,8 @@ async function aiSentence() {
   if (!currentRow.value) return
   const local = windowLinesFor(currentRow.value.row)
   const system =
-    '你是日语学习助手。请对台词做整句讲解：句子结构拆解、逐段直译与官方译文对照、语言点提炼。用中文。'
-  const user = `日文原句：${local.jp}\n官方中译：${local.chs}`
+    '你是日语学习助手。请用中文分析完整日文台词的语法结构：先概括句意，再按分句拆解主语、谓语、宾语、修饰关系和省略成分；说明助词作用、活用形、语法句型、敬语与语气；逐段直译并对照官方中译，最后总结可复用的语言点。引用对应日文片段，不要只逐词列释义。'
+  const user = `任务：${title.value}\n说话人：${currentRow.value.row.jp?.role || currentRow.value.row.chs?.role || ''}\n日文原句：${local.jp}\n官方中译：${local.chs}`
   showAi.value = true
   await ai.ask('sentence_explain', system, user)
 }
@@ -584,8 +586,9 @@ function windowLinesFor(row: AlignedRow) {
           :result="selection"
           :loading="selectionLoading"
           :ai-availability="ai.availability"
-          :sentence-jp="currentRow?.row.jp?.text || ''"
-          :sentence-chs="currentRow?.row.chs?.text || ''"
+          :ai-busy="ai.turns.some((turn) => turn.streaming)"
+          :sentence-jp="displayGameText(currentRow?.row.jp?.text, 'jp', reader.traveler)"
+          :sentence-chs="displayGameText(currentRow?.row.chs?.text, 'chs', reader.traveler)"
           @note-word="noteWord"
           @note-sentence="noteSentence"
           @ai-context="aiContext"
@@ -606,8 +609,8 @@ function windowLinesFor(row: AlignedRow) {
         </div>
       </aside>
     </div>
-    <n-drawer v-model:show="showAi" :width="440"
-      ><n-drawer-content title="语言助手"><AiPanel /></n-drawer-content
+    <n-drawer v-model:show="showAi" :width="560" @after-leave="ai.useDefaultProfile()"
+      ><n-drawer-content :title="ai.assistantName" closable><AiPanel v-if="showAi" /></n-drawer-content
     ></n-drawer>
   </div>
 </template>

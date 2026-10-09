@@ -26,7 +26,8 @@ pub fn settings_get(state: S, key: String) -> Result<Option<String>, AppError> {
     }
     if key == "resources.update_urls" {
         return serde_json::to_string(&crate::resources::update_urls(&state)?)
-            .map(Some).map_err(|_| AppError::internal("资源地址读取失败"));
+            .map(Some)
+            .map_err(|_| AppError::internal("资源地址读取失败"));
     }
     state
         .store
@@ -200,12 +201,15 @@ pub async fn story_pack_import(
     let state = state.inner().clone();
     let operation = crate::resources::start_operation(&state)?;
     let progress_app = app.clone();
-    let progress: crate::resources::ProgressCallback = Arc::new(move |progress| { let _ = progress_app.emit("story-resource-progress", progress); });
+    let progress: crate::resources::ProgressCallback = Arc::new(move |progress| {
+        let _ = progress_app.emit("story-resource-progress", progress);
+    });
     let report = tokio::task::spawn_blocking(move || {
         crate::resources::import_file_with_progress(&state, Path::new(&path), &progress)
     })
     .await
-    .map_err(|_| AppError::internal("剧情导入任务中断")).and_then(|r| r);
+    .map_err(|_| AppError::internal("剧情导入任务中断"))
+    .and_then(|r| r);
     drop(operation);
     let _ = app.emit("story-resources-changed", ());
     report
@@ -218,7 +222,9 @@ pub async fn story_pack_update(
 ) -> Result<StoryImportReport, AppError> {
     let operation = crate::resources::start_operation(state.inner())?;
     let progress_app = app.clone();
-    let progress: crate::resources::ProgressCallback = Arc::new(move |progress| { let _ = progress_app.emit("story-resource-progress", progress); });
+    let progress: crate::resources::ProgressCallback = Arc::new(move |progress| {
+        let _ = progress_app.emit("story-resource-progress", progress);
+    });
     let report = crate::resources::update(state.inner(), progress).await;
     drop(operation);
     let _ = app.emit("story-resources-changed", ());
@@ -447,15 +453,13 @@ pub fn override_resolve(
 
 #[tauri::command]
 pub fn ai_state(state: S) -> Result<AiAvailability, AppError> {
-    let has = state
-        .store
-        .with_read(|c| Ok(ai::AiProfileRegistry::list(c)?.iter().any(|p| p.is_active)))?;
-    if !has {
-        return Ok(AiAvailability::Unconfigured);
+    match state.active_profile()? {
+        None => Ok(AiAvailability::Unconfigured),
+        Some(profile) if crate::ai_connection::is_verified(&state, &profile)? => {
+            Ok(AiAvailability::ConfiguredAvailable)
+        }
+        Some(_) => Ok(AiAvailability::ConfiguredUnavailable),
     }
-    // 已配置：可达性以最近一次连通性测试结果为准（此处简化为「已配置可用」，
-    // 连通性测试结果由 ai_test_connection 写入并在前端缓存呈现）。
-    Ok(AiAvailability::ConfiguredAvailable)
 }
 
 #[tauri::command]
@@ -465,7 +469,8 @@ pub fn ai_profile_list(state: S) -> Result<Vec<AiProfileDto>, AppError> {
         .into_iter()
         .map(|r| {
             let has_secret = state.secret_for(&r).is_some();
-            AiProfileDto {
+            let is_available = crate::ai_connection::is_verified(&state, &r)?;
+            Ok(AiProfileDto {
                 id: r.id,
                 name: r.name,
                 channel: match r.channel.as_str() {
@@ -484,10 +489,11 @@ pub fn ai_profile_list(state: S) -> Result<Vec<AiProfileDto>, AppError> {
                 cli_version: r.cli_version,
                 config_fingerprint: r.config_fingerprint,
                 is_active: r.is_active,
+                is_available,
                 has_secret,
-            }
+            })
         })
-        .collect())
+        .collect::<Result<Vec<_>, AppError>>()?)
 }
 
 #[tauri::command]
@@ -544,6 +550,7 @@ pub async fn ai_profile_save(state: S<'_>, input: AiProfileInput) -> Result<i64,
 
 #[tauri::command]
 pub fn ai_profile_delete(state: S, id: i64) -> Result<(), AppError> {
+    crate::ai_connection::record(&state, id, None)?;
     state
         .store
         .with_write(|c| ai::AiProfileRegistry::delete(c, id))
@@ -551,105 +558,73 @@ pub fn ai_profile_delete(state: S, id: i64) -> Result<(), AppError> {
 
 #[tauri::command]
 pub fn ai_profile_activate(state: S, id: i64) -> Result<(), AppError> {
+    let profile = state
+        .store
+        .with_read(|connection| ai::AiProfileRegistry::list(connection))?
+        .into_iter()
+        .find(|profile| profile.id == id)
+        .ok_or_else(|| AppError::invalid_param("助手配置不存在"))?;
+    if !crate::ai_connection::is_verified(&state, &profile)? {
+        return Err(AppError::invalid_param(
+            "请先测试此配置，确认模型能正常回答后再设为默认",
+        ));
+    }
     state
         .store
         .with_write(|c| ai::AiProfileRegistry::set_active(c, id))
 }
 
-/// 连通性测试 + CLI 隔离预检（拒绝启用时展示原始输出）。
+/// 使用真实通道测试所选模型，成功结果与当前配置绑定。
 #[tauri::command]
 pub async fn ai_test_connection(state: S<'_>, profile_id: i64) -> Result<AiTestResult, AppError> {
-    let st = state.inner().clone();
-    let profile = st
-        .store
-        .with_read(|c| ai::AiProfileRegistry::list(c))?
-        .into_iter()
-        .find(|p| p.id == profile_id)
-        .ok_or_else(|| AppError::invalid_param("profile 不存在"))?;
-    // CLI 通道：先过隔离守卫（OpenCode 生效配置预检 + 探针 + 版本记录）。
-    if profile.channel == "cli" {
-        let kind = profile
-            .cli_kind
-            .as_deref()
-            .and_then(ai::cli::CliKind3::from_str)
-            .ok_or_else(|| AppError::invalid_param("CLI 通道缺少 cli_kind"))?;
-        let command = profile
-            .command_path
-            .clone()
-            .unwrap_or_else(|| kind.as_str().to_string());
-        if kind == ai::cli::CliKind3::Opencode {
-            if let Err(e) = st.ai_guard.preflight_opencode(&command).await {
-                return Ok(AiTestResult {
-                    ok: false,
-                    message: e.message.clone(),
-                    raw_output: e.detail.clone(),
-                });
-            }
-        }
-        let version = match st.ai_guard.cli_version(kind, &command).await {
-            Ok(v) => v,
-            Err(e) => {
-                return Ok(AiTestResult {
-                    ok: false,
-                    message: e.message.clone(),
-                    raw_output: e.detail.clone(),
-                })
-            }
-        };
-        if let Err(e) = st.ai_guard.probe(kind, &command, &profile.model).await {
-            return Ok(AiTestResult {
-                ok: false,
-                message: e.message.clone(),
-                raw_output: e.detail.clone(),
-            });
-        }
-        // 版本记录 + 指纹更新。
-        let mut updated = profile.clone();
-        updated.cli_version = Some(version);
-        let old = profile.config_fingerprint.clone();
-        st.store
-            .with_write(|c| ai::AiProfileRegistry::save(c, &updated, old.as_deref()))?;
-        return Ok(AiTestResult {
-            ok: true,
-            message: "隔离预检与探针通过".into(),
-            raw_output: None,
-        });
-    }
-    // HTTP 通道：max_tokens=1 极小请求。
-    let req = AiRequest {
-        system: "ping".into(),
-        user: "ping".into(),
-        feature: "connection_test".into(),
-        prompt_tpl_version: "1".into(),
-        timeout_secs: 30,
-        max_tokens: Some(1),
+    crate::ai_connection::test_profile(state.inner(), profile_id).await
+}
+
+#[tauri::command]
+pub async fn ai_cli_models(
+    state: S<'_>,
+    command_path: Option<String>,
+) -> Result<Vec<String>, AppError> {
+    let command = command_path
+        .as_deref()
+        .filter(|path| !path.trim().is_empty())
+        .unwrap_or("opencode");
+    state.ai_guard.opencode_models(command).await
+}
+
+#[tauri::command]
+pub async fn ai_cli_detect(
+    cli_kind: CliKind,
+    command_path: Option<String>,
+) -> Result<Option<String>, AppError> {
+    let kind = match cli_kind {
+        CliKind::Claude => ai::cli::CliKind3::Claude,
+        CliKind::Codex => ai::cli::CliKind3::Codex,
+        CliKind::Opencode => ai::cli::CliKind3::Opencode,
     };
-    let secret = st.secret_for(&profile);
-    let mut rx = st.ai_client.ask(&profile, secret, req).await?;
-    while let Some(ev) = rx.recv().await {
-        match ev {
-            ai::AiEvent::Done { .. } => {
-                return Ok(AiTestResult {
-                    ok: true,
-                    message: "连通".into(),
-                    raw_output: None,
-                })
-            }
-            ai::AiEvent::Failed(e) => {
-                return Ok(AiTestResult {
-                    ok: false,
-                    message: e.message.clone(),
-                    raw_output: e.detail.clone(),
-                })
-            }
-            _ => {}
-        }
-    }
-    Ok(AiTestResult {
-        ok: false,
-        message: "无终态事件".into(),
-        raw_output: None,
+    Ok(ai::executable::resolve(kind, command_path.as_deref())
+        .await
+        .ok()
+        .map(|executable| executable.path))
+}
+
+#[tauri::command]
+pub async fn ai_cli_pick(app: AppHandle) -> Result<Option<String>, AppError> {
+    use tauri_plugin_dialog::DialogExt;
+    tokio::task::spawn_blocking(move || {
+        app.dialog()
+            .file()
+            .set_title("选择本机 CLI 程序")
+            .blocking_pick_file()
+            .map(|file| {
+                file.into_path()
+                    .map(|path| path.to_string_lossy().into_owned())
+                    .map_err(|_| AppError::invalid_param("请选择本机的 CLI 程序文件"))
+            })
+            .transpose()
     })
+    .await
+    .map_err(|_| AppError::internal("文件选择窗口不可用"))?
 }
 
 /// 发起一次 AI 功能调用（提示词经目录组装；流事件经 event 通道推送）。
@@ -661,11 +636,17 @@ pub async fn ai_ask_start(
     system: String,
     user: String,
     timeout_secs: Option<u64>,
+    profile_id: Option<i64>,
 ) -> Result<u64, AppError> {
     let st = state.inner().clone();
-    let profile = st.active_profile()?.ok_or_else(|| {
+    let profile = st.selected_profile(profile_id)?.ok_or_else(|| {
         AppError::invalid_param("AI 未配置：该功能为可选增强，请先在设置页配置 AI")
     })?;
+    if !crate::ai_connection::is_verified(&st, &profile)? {
+        return Err(AppError::ai_channel(
+            "所选助手尚未通过连接测试，请在偏好设置中测试后再使用",
+        ));
+    }
     let spec = ai::AiPromptCatalog::get(&feature)
         .ok_or_else(|| AppError::invalid_param(format!("未知 AI 功能: {feature}")))?;
     let request_id = st.request_counter.fetch_add(1, Ordering::SeqCst);
@@ -679,10 +660,40 @@ pub async fn ai_ask_start(
         max_tokens: None,
     };
     let secret = st.secret_for(&profile);
-    let mut rx = st.ai_client.ask(&profile, secret, req).await?;
+    let mut rx = match st.ai_client.ask(&profile, secret, req).await {
+        Ok(events) => events,
+        Err(error) => {
+            let _ = crate::ai_connection::record(&st, profile.id, None);
+            st.cancels.unregister(request_id);
+            return Err(error);
+        }
+    };
     let app2 = app.clone();
     tokio::spawn(async move {
-        while let Some(ev) = rx.recv().await {
+        loop {
+            let event = tokio::select! {
+                _ = st.cancels.cancelled(request_id) => {
+                    let _ = app2.emit("ai-stream", AiStreamEvent { request_id, kind: "cancelled".into(), text: None, cached: false, error: None });
+                    break;
+                }
+                event = rx.recv() => event,
+            };
+            let Some(ev) = event else {
+                break;
+            };
+            match &ev {
+                ai::AiEvent::Done { cached: false, .. } => {
+                    let _ = crate::ai_connection::record(
+                        &st,
+                        profile.id,
+                        profile.config_fingerprint.as_deref(),
+                    );
+                }
+                ai::AiEvent::Failed(_) => {
+                    let _ = crate::ai_connection::record(&st, profile.id, None);
+                }
+                _ => {}
+            }
             let dto = match ev {
                 ai::AiEvent::Delta(t) => AiStreamEvent {
                     request_id,

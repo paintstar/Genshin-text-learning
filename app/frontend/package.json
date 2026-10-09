@@ -22,6 +22,8 @@
     "@tauri-apps/api": "^2",
     "@vueuse/core": "^13",
     "@wwzzyying/kuromoji": "^1.0.6",
+    "dompurify": "^3.4.16",
+    "marked": "^18.1.0",
     "naive-ui": "^2.42",
     "pinia": "^3",
     "vue": "^3.5",
@@ -31,6 +33,7 @@
   "devDependencies": {
     "@tauri-apps/cli": "^2.12.1",
     "@vitejs/plugin-vue": "^6",
+    "jsdom": "^29.1.1",
     "typescript": "^5.9",
     "vite": "^7",
     "vitest": "^3",
