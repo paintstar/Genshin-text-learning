@@ -23,6 +23,7 @@ export const useSettingsStore = defineStore('settings', {
     busy: false,
     initError: null as string | null,
     message: '' as string | null,
+    messageType: 'error' as 'error' | 'info',
   }),
   getters: {
     storyActive: state => !!state.init?.storyImporting || state.storyProgress !== null,
@@ -48,24 +49,32 @@ export const useSettingsStore = defineStore('settings', {
       if (this.busy || this.init?.storyImporting) return
       this.busy = true
       this.message = null
+      this.messageType = 'error'
       this.storyReport = null
       try {
         const path = await getGateway().storyPackPick()
         if (!path) return
         this.storyReport = await getGateway().storyPackImport(path)
         await this.refreshInit()
-      } catch (e: any) { this.message = e?.message ?? String(e) }
+      } catch (e: any) {
+        this.message = e?.message ?? String(e)
+        this.messageType = e?.shape?.kind === 'cancelled' ? 'info' : 'error'
+      }
       finally { this.busy = false; this.cancelingStory = false; await this.refreshInit() }
     },
     async updateStories() {
       if (this.busy || this.init?.storyImporting) return
       this.busy = true
       this.message = null
+      this.messageType = 'error'
       this.storyReport = null
       try {
         this.storyReport = await getGateway().storyPackUpdate()
         await this.refreshInit()
-      } catch (e: any) { this.message = e?.message ?? String(e) }
+      } catch (e: any) {
+        this.message = e?.message ?? String(e)
+        this.messageType = e?.shape?.kind === 'cancelled' ? 'info' : 'error'
+      }
       finally { this.busy = false; this.cancelingStory = false; await this.refreshInit() }
     },
     async cancelStories() {
@@ -92,6 +101,7 @@ export const useSettingsStore = defineStore('settings', {
         await getGateway().termsAccept()
         await this.refreshInit()
       } catch (e: any) {
+        this.messageType = 'error'
         this.message = e?.message ?? String(e)
       }
     },
@@ -102,6 +112,7 @@ export const useSettingsStore = defineStore('settings', {
         this.updateReport = await getGateway().bootstrapIndexSync()
         await this.refreshInit()
       } catch (e: any) {
+        this.messageType = 'error'
         this.message = e?.message ?? String(e)
       } finally {
         this.busy = false
@@ -112,6 +123,7 @@ export const useSettingsStore = defineStore('settings', {
       try {
         this.updateReport = await getGateway().updateCheck()
       } catch (e: any) {
+        this.messageType = 'error'
         this.message = e?.message ?? String(e)
       } finally {
         this.busy = false
@@ -122,6 +134,7 @@ export const useSettingsStore = defineStore('settings', {
       try {
         await getGateway().updateRefresh(questIds)
       } catch (e: any) {
+        this.messageType = 'error'
         this.message = e?.message ?? String(e)
       } finally {
         this.busy = false

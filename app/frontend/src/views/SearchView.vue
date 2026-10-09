@@ -108,7 +108,7 @@ watch(canSearch, (ready, previous) => {
     <StoryResourceStatus class="notice" />
     <n-alert
       v-if="settings.message"
-      type="error"
+      :type="settings.messageType"
       class="notice"
       closable
       @close="settings.message = null"

@@ -89,17 +89,12 @@ impl BackupService {
 
 /// 供测试与恢复预检复用的「独立只读打开 + integrity_check」。
 pub fn integrity_check(path: &Path) -> Result<bool, AppError> {
-    let conn = Connection::open(format!("file:{}?mode=ro", path_to_uri(path)))
+    let conn = Connection::open_with_flags(path, rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY)
         .map_err(|e| AppError::resource_missing(format!("无法打开文件: {e}")))?;
     let result: String = conn
         .query_row("PRAGMA integrity_check", [], |r| r.get(0))
         .map_err(map_err)?;
     Ok(result == "ok")
-}
-
-/// 最小 URI 路径编码（不做 mode 参数，仅文件名部分）。
-pub(crate) fn path_to_uri(path: &Path) -> String {
-    path.to_string_lossy().replace('?', "%3f").replace('#', "%23")
 }
 
 #[cfg(test)]

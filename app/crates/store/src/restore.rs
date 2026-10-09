@@ -62,7 +62,7 @@ impl RestoreService {
         let integrity_ok = integrity_check(backup_path)?;
         let sha = sha256_file(backup_path)?;
         let (schema_version, counts) = {
-            let conn = Connection::open(format!("file:{}?mode=ro", crate::backup::path_to_uri(backup_path)))
+            let conn = Connection::open_with_flags(backup_path, rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY)
                 .map_err(|e| AppError::resource_missing(format!("无法打开备份: {e}")))?;
             let v = MigrationRunner::current_version(&conn)?;
             let c = MigrationRunner::summary_counts(&conn, &self.fragments)?;
@@ -224,7 +224,7 @@ mod tests {
 
     #[test]
     fn two_phase_restore_success_and_rollback() {
-        let dir = std::env::temp_dir().join(format!("gll-restore-{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("提瓦特 restore 100%20-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
         let store = setup(&dir);
 

@@ -155,7 +155,7 @@ async function restore() {
     </div>
     <n-alert
       v-if="settings.message"
-      type="error"
+      :type="settings.messageType"
       class="notice"
       closable
       @close="settings.message = null"
