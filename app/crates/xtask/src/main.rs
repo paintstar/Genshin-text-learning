@@ -20,6 +20,27 @@ fn main() {
     let args: Vec<String> = std::env::args().collect();
     let cmd = args.get(1).map(String::as_str).unwrap_or("help");
     match cmd {
+        "dict" => {
+            let result = (|| -> Result<(), Box<dyn std::error::Error>> {
+                if args.get(2).map(String::as_str) != Some("inspect") {
+                    return Err("用法: dict inspect <dict.db>".into());
+                }
+                let path = args.get(3).ok_or("缺少词典文件")?;
+                let db = rusqlite::Connection::open_with_flags(path, rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY)?;
+                let mode: String = db.query_row("SELECT value FROM meta WHERE key='build_mode'", [], |r| r.get(0))?;
+                if mode != "full" { return Err("正式构建必须使用完整词典".into()); }
+                let integrity: String = db.query_row("PRAGMA quick_check", [], |r| r.get(0))?;
+                if integrity != "ok" { return Err("词典数据库损坏".into()); }
+                let count: i64 = db.query_row("SELECT COUNT(*) FROM dict_entry", [], |r| r.get(0))?;
+                if count == 0 { return Err("词典没有有效词条".into()); }
+                println!("完整词典：{count} 个词条");
+                Ok(())
+            })();
+            if let Err(error) = result {
+                eprintln!("词典检查失败：{error}");
+                std::process::exit(1);
+            }
+        }
         "story-pack" => {
             let result = (|| -> Result<(), shared::AppError> {
                 let path = args.get(3).ok_or_else(|| {
@@ -217,6 +238,8 @@ fn type_overrides() -> Vec<(&'static str, &'static str, &'static str)> {
         ("CandidateForm", "sourceNote", "string | null"),
         ("AppError", "detail", "string | null"),
         ("AppInitInfo", "storyResource", "StoryResourceInfo | null"),
+        ("AppInitInfo", "storyProgress", "StoryResourceProgress | null"),
+        ("StoryResourceProgress", "total", "number | null"),
         ("StoryImportReport", "resource", "StoryResourceInfo"),
         ("OpenQuestResult", "snapshot", "GraphSnapshot | null"),
         ("OpenQuestResult", "job", "FetchJobStatus | null"),

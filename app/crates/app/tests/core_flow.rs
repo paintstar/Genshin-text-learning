@@ -1201,3 +1201,47 @@ fn bundled_story_upgrade_imports_newer_snapshot_without_downgrading() {
     assert_eq!(app_lib::resources::resource_info(&env.state).unwrap().unwrap().data_version, "offline.2");
     let _ = std::fs::remove_dir_all(&env.dir);
 }
+
+#[test]
+fn story_pack_cancel_keeps_completed_tasks_and_resumes() {
+    let env = setup_env();
+    let path = env.dir.join("story.gllpack");
+    std::fs::write(&path, story_pack_bytes("offline.1", vec![(1702, diamond_jp(), diamond_chs())], false)).unwrap();
+    app_lib::resources::import_file(&env.state, &path).unwrap();
+    let changed = String::from_utf8(diamond_jp()).unwrap().replace("行こう！", "更新した文章").into_bytes();
+    std::fs::write(&path, story_pack_bytes("offline.2", vec![(1702, changed, diamond_chs()), (1703, diamond_jp(), diamond_chs())], false)).unwrap();
+    let operation = app_lib::resources::start_operation(&env.state).unwrap();
+    assert!(app_lib::resources::start_operation(&env.state).is_err());
+    let state = env.state.clone();
+    let progress: app_lib::resources::ProgressCallback = Arc::new(move |p| {
+        if p.stage == "importing" && p.completed == 1 { app_lib::resources::cancel_operation(&state); }
+    });
+    let error = app_lib::resources::import_file_with_progress(&env.state, &path, &progress).unwrap_err();
+    assert_eq!(error.kind, shared::AppErrorKind::Cancelled);
+    drop(operation);
+    assert_eq!(app_lib::resources::resource_info(&env.state).unwrap().unwrap().data_version, "offline.1");
+    env.state.store.with_read(|c| {
+        assert!(kb::query::raw_meta(c, 1703, GameLang::Jp)?.is_none());
+        Ok(())
+    }).unwrap();
+    let operation = app_lib::resources::start_operation(&env.state).unwrap();
+    let resumed = app_lib::resources::import_bundled(&env.state, &path).unwrap().unwrap();
+    assert_eq!((resumed.imported, resumed.unchanged), (1, 1));
+    assert_eq!(resumed.resource.data_version, "offline.2");
+    drop(operation);
+    assert!(env.source.calls.lock().unwrap().is_empty());
+    let _ = std::fs::remove_dir_all(&env.dir);
+}
+
+#[test]
+fn resource_update_urls_use_defaults_and_preserve_explicit_disable() {
+    let env = setup_env();
+    let defaults = app_lib::resources::update_urls(&env.state).unwrap();
+    assert!(!defaults.is_empty());
+    assert!(defaults.iter().all(|url| url.starts_with("https://")));
+    env.state.store.with_write(|c| store::SettingsKvStore::set(c, "resources.update_urls", "[]")).unwrap();
+    assert!(app_lib::resources::update_urls(&env.state).unwrap().is_empty());
+    env.state.store.with_write(|c| store::SettingsKvStore::set(c, "resources.update_urls", "")).unwrap();
+    assert_eq!(app_lib::resources::update_urls(&env.state).unwrap(), defaults);
+    let _ = std::fs::remove_dir_all(&env.dir);
+}

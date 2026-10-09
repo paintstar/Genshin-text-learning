@@ -133,8 +133,16 @@ pub struct PackInspection {
 
 /// 完整检查必须在任何写入前执行，包括最后一条记录和 gzip 尾部校验。
 pub fn inspect(reader: impl Read) -> Result<PackInspection, AppError> {
+    inspect_with_progress(reader, |_, _| Ok(()))
+}
+
+pub fn inspect_with_progress(
+    reader: impl Read,
+    mut progress: impl FnMut(usize, usize) -> Result<(), AppError>,
+) -> Result<PackInspection, AppError> {
     let mut reader = PackReader::new(reader);
     let header = reader.header()?;
+    progress(0, header.quest_count)?;
     let jp_index = parse_index(header.index.jp.get().as_bytes())?;
     let chs_index = parse_index(header.index.chs.get().as_bytes())?;
     let index_ids = |entries: &[QuestIndexEntry]| -> Result<HashSet<i64>, AppError> {
@@ -167,6 +175,7 @@ pub fn inspect(reader: impl Read) -> Result<PackInspection, AppError> {
         if !crate::AlignClassifier::is_ok(&classification) {
             degraded += 1;
         }
+        progress(seen.len(), header.quest_count)?;
     }
     if seen != ids {
         return Err(AppError::integrity("剧情资源包正文缺失"));

@@ -1,7 +1,7 @@
 {
   "name": "genshin-lang-frontend",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.2.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -15,6 +15,7 @@
     "bindings": "cargo run -p xtask -- bindings --check",
     "desktop": "cd ../crates/app && tauri dev",
     "desktop:build": "node scripts/build-desktop.mjs",
+    "resources:prepare": "node scripts/prepare-resources.mjs",
     "postinstall": "node scripts/copy-kuromoji-dict.mjs"
   },
   "dependencies": {

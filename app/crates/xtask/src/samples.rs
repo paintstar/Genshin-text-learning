@@ -6,6 +6,7 @@ use serde_json::{json, Value};
 
 pub fn samples() -> Vec<(&'static str, Value)> {
     vec![
+        ("story_resource_progress", serde_json::to_value(shared::dto::StoryResourceProgress { stage: "importing".into(), completed: 0, total: Some(1) }).unwrap()),
         (
             "story_resource_info",
             serde_json::to_value(shared::dto::StoryResourceInfo {
@@ -271,7 +272,7 @@ pub fn samples() -> Vec<(&'static str, Value)> {
             "app_init_info",
             json!({
                 "indexReady": false, "termsAccepted": false, "aiAvailability": "unconfigured",
-                "dictAvailable": true, "schemaVersion": 5, "pendingRestore": false, "storyResource": null, "storyImporting": false
+                "dictAvailable": true, "schemaVersion": 5, "pendingRestore": false, "storyResource": null, "storyImporting": false, "storyProgress": null
             }),
         ),
         (

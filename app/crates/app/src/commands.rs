@@ -24,6 +24,10 @@ pub fn settings_get(state: S, key: String) -> Result<Option<String>, AppError> {
     if !shared::keys::is_valid_key(&key) {
         return Err(AppError::invalid_param(format!("非法设置键: {key}")));
     }
+    if key == "resources.update_urls" {
+        return serde_json::to_string(&crate::resources::update_urls(&state)?)
+            .map(Some).map_err(|_| AppError::internal("资源地址读取失败"));
+    }
     state
         .store
         .with_read(|c| store::SettingsKvStore::get(c, &key))
@@ -194,13 +198,17 @@ pub async fn story_pack_import(
     path: String,
 ) -> Result<StoryImportReport, AppError> {
     let state = state.inner().clone();
+    let operation = crate::resources::start_operation(&state)?;
+    let progress_app = app.clone();
+    let progress: crate::resources::ProgressCallback = Arc::new(move |progress| { let _ = progress_app.emit("story-resource-progress", progress); });
     let report = tokio::task::spawn_blocking(move || {
-        crate::resources::import_file(&state, Path::new(&path))
+        crate::resources::import_file_with_progress(&state, Path::new(&path), &progress)
     })
     .await
-    .map_err(|_| AppError::internal("剧情导入任务中断"))??;
+    .map_err(|_| AppError::internal("剧情导入任务中断")).and_then(|r| r);
+    drop(operation);
     let _ = app.emit("story-resources-changed", ());
-    Ok(report)
+    report
 }
 
 #[tauri::command]
@@ -208,9 +216,18 @@ pub async fn story_pack_update(
     app: AppHandle,
     state: S<'_>,
 ) -> Result<StoryImportReport, AppError> {
-    let report = crate::resources::update(state.inner()).await?;
+    let operation = crate::resources::start_operation(state.inner())?;
+    let progress_app = app.clone();
+    let progress: crate::resources::ProgressCallback = Arc::new(move |progress| { let _ = progress_app.emit("story-resource-progress", progress); });
+    let report = crate::resources::update(state.inner(), progress).await;
+    drop(operation);
     let _ = app.emit("story-resources-changed", ());
-    Ok(report)
+    report
+}
+
+#[tauri::command]
+pub fn story_pack_cancel(state: S) -> bool {
+    crate::resources::cancel_operation(&state)
 }
 
 #[tauri::command]
@@ -848,6 +865,7 @@ pub fn app_init(state: S) -> Result<AppInitInfo, AppError> {
     .has_pending();
     Ok(AppInitInfo {
         story_importing: state.story_importing.load(Ordering::SeqCst),
+        story_progress: state.story_progress.lock().unwrap().clone(),
         story_resource: crate::resources::resource_info(&state)?,
         index_ready,
         terms_accepted: state.gate.is_accepted(),

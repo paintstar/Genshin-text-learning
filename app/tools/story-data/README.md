@@ -1,6 +1,6 @@
 # 剧情资源维护工具
 
-资源仓库位于 https://github.com/paintstar/Genshin-dataset，目前为私有。此目录提供相同的采集工具，便于从应用源码生成和验证资源；维护端使用的工具及工作流在资源仓库管理。
+资源仓库位于 https://github.com/paintstar/Genshin-dataset，目前已公开。此目录提供相同的采集工具，便于从应用源码生成和验证资源；维护端使用的工具及工作流在资源仓库管理。
 
 在项目根目录执行以下命令，采集缓存和生成文件保存在已忽略的 `work/` 目录：
 
@@ -18,6 +18,6 @@ cargo run -p xtask -- story-pack inspect tools/story-data/work/dist/story.gllpac
 
 开发样本通过 `fixture --fixtures app/fixtures` 生成，检查时需要添加 `--allow-fixture`。测试资源不能用于正式发布。
 
-生成的正式包可以在桌面应用的设置页选择导入；也可以复制到 `app/crates/app/resources/story.gllpack` 后执行 `npm run desktop:build`，构建脚本会检查并随安装包分发。开发启动使用 `GLL_STORY_PACK` 指向资源包，首次启动在后台导入，升级时只导入更新的随包快照。联网更新地址为提供 `latest.json` 的 HTTPS URL，可在设置中填写多个地址。清单用于版本和完整性检查，当前依赖所配置 HTTPS 源的可信性；它不是独立的数字签名机制。
+生成的正式包可以在桌面应用的设置页选择导入；也可以复制到 `app/crates/app/resources/story.gllpack` 后执行 `npm run desktop:build`，构建脚本会检查并随安装包分发。开发启动使用 `GLL_STORY_PACK` 指向资源包，首次启动在后台导入，升级时只导入更新的随包快照。默认更新地址为 `https://github.com/paintstar/Genshin-dataset/releases/latest/download/latest.json`，由 `app/resource-sources.json` 管理，可在设置中增加备用地址。清单用于版本和完整性检查，当前依赖所配置 HTTPS 源的可信性；它不是独立的数字签名机制。
 
-导入会先检查整个资源包，然后按任务事务更新剧情，原句变化后保留笔记快照并标记需要重新核对。资源导入不替换个人数据库，不包含设置、密钥和学习笔记。磁盘写入中途失败时，已完成任务保留，重新导入会跳过正文未变的任务。
+导入会先检查整个资源包，然后按任务事务更新剧情，原句变化后保留笔记快照并标记需要重新核对。资源导入不替换个人数据库，不包含设置、密钥和学习笔记。取消或磁盘写入中途失败时，已完成任务保留，重新导入会跳过正文未变的任务。联网更新及随包升级不自动降级，手动导入可指定旧资源。

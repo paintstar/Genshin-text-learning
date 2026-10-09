@@ -5,27 +5,38 @@ import { getGateway } from '@/gateway/provider'
 import type {
   AppInitInfo,
   StoryImportReport,
+  StoryResourceProgress,
   UpdateReport,
 } from '@/gateway/bindings'
 
 let resourcesListener: Promise<() => void> | null = null
+let progressListener: Promise<() => void> | null = null
 
 export const useSettingsStore = defineStore('settings', {
   state: () => ({
     init: null as AppInitInfo | null,
     storyReport: null as StoryImportReport | null,
+    storyProgress: null as StoryResourceProgress | null,
+    cancelingStory: false,
     updateUrls: [] as string[],
     updateReport: null as UpdateReport | null,
     busy: false,
     initError: null as string | null,
     message: '' as string | null,
   }),
+  getters: {
+    storyActive: state => !!state.init?.storyImporting || state.storyProgress !== null,
+  },
   actions: {
     async refreshInit() {
       try {
         if (!resourcesListener) resourcesListener = getGateway().onStoryResourcesChanged(() => { void this.refreshInit() }).catch(error => { resourcesListener = null; throw error })
         await resourcesListener
+        if (!progressListener) progressListener = getGateway().onStoryResourceProgress(progress => { this.storyProgress = progress }).catch(error => { progressListener = null; throw error })
+        await progressListener
         this.init = await getGateway().appInit()
+        this.storyProgress = this.init.storyProgress
+        if (!this.init.storyImporting && !this.busy) this.cancelingStory = false
         const urls = JSON.parse(await getGateway().settingsGet('resources.update_urls') || '[]')
         this.updateUrls = Array.isArray(urls) ? urls.filter((url): url is string => typeof url === 'string') : []
         this.initError = null
@@ -34,6 +45,7 @@ export const useSettingsStore = defineStore('settings', {
       }
     },
     async importStories() {
+      if (this.busy || this.init?.storyImporting) return
       this.busy = true
       this.message = null
       this.storyReport = null
@@ -43,9 +55,10 @@ export const useSettingsStore = defineStore('settings', {
         this.storyReport = await getGateway().storyPackImport(path)
         await this.refreshInit()
       } catch (e: any) { this.message = e?.message ?? String(e) }
-      finally { this.busy = false }
+      finally { this.busy = false; this.cancelingStory = false; await this.refreshInit() }
     },
     async updateStories() {
+      if (this.busy || this.init?.storyImporting) return
       this.busy = true
       this.message = null
       this.storyReport = null
@@ -53,7 +66,16 @@ export const useSettingsStore = defineStore('settings', {
         this.storyReport = await getGateway().storyPackUpdate()
         await this.refreshInit()
       } catch (e: any) { this.message = e?.message ?? String(e) }
-      finally { this.busy = false }
+      finally { this.busy = false; this.cancelingStory = false; await this.refreshInit() }
+    },
+    async cancelStories() {
+      this.cancelingStory = true
+      try { await getGateway().storyPackCancel() }
+      catch (e: any) { this.message = e?.message ?? String(e); this.cancelingStory = false }
+    },
+    async resetUpdateUrls() {
+      await getGateway().settingsSet('resources.update_urls', '')
+      await this.refreshInit()
     },
     async saveUpdateUrls(text: string) {
       const urls = [...new Set(text.split(/\r?\n/).map(url => url.trim()).filter(Boolean))]

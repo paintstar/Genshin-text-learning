@@ -30,7 +30,7 @@ dependencies = [
 
 [[package]]
 name = "ai"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "async-trait",
  "futures-util",
@@ -77,7 +77,7 @@ checksum = "330a5ed07fa54e4702c9d6c4174f74427fc0ef6e214bbd677ae50a5099946470"
 
 [[package]]
 name = "app"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "ai",
  "async-trait",
@@ -842,7 +842,7 @@ dependencies = [
 
 [[package]]
 name = "dict"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "rusqlite",
  "serde",
@@ -1103,7 +1103,7 @@ dependencies = [
 
 [[package]]
 name = "fetcher"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "async-trait",
  "kb",
@@ -2111,7 +2111,7 @@ dependencies = [
 
 [[package]]
 name = "kb"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "async-trait",
  "flate2",
@@ -3762,7 +3762,7 @@ dependencies = [
 
 [[package]]
 name = "shared"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "serde",
  "serde_json",
@@ -3880,7 +3880,7 @@ checksum = "a2eb9349b6444b326872e140eb1cf5e7c522154d69e7a0ffb0fb81c06b37543f"
 
 [[package]]
 name = "store"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "chrono",
  "keyring",
@@ -3923,7 +3923,7 @@ checksum = "7da8b5736845d9f2fcb837ea5d9e2628564b3b043a70948a3f0b778838c5fb4f"
 
 [[package]]
 name = "study"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "rusqlite",
  "serde",
@@ -5603,9 +5603,10 @@ dependencies = [
 
 [[package]]
 name = "xtask"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "kb",
+ "rusqlite",
  "serde_json",
  "shared",
 ]

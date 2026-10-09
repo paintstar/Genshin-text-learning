@@ -7,3 +7,4 @@ edition.workspace = true
 shared = { path = "../shared" }
 kb = { path = "../kb" }
 serde_json = { workspace = true }
+rusqlite = { workspace = true }

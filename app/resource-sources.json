@@ -1,0 +1,9 @@
+{
+  "storyManifestUrls": [
+    "https://github.com/paintstar/Genshin-dataset/releases/latest/download/latest.json"
+  ],
+  "dictionary": {
+    "url": "https://github.com/paintstar/Genshin-text-learning/releases/download/v0.1.0/GenshinLangLearning-dictionary-v0.1.0.zip",
+    "sha256": "231882297f660e2455ad63b9d636f5529f2afbc29f7d6e2bae9439b4c34540a7"
+  }
+}

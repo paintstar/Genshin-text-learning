@@ -6,6 +6,7 @@
 !/require.md
 !/THIRD_PARTY_NOTICES.md
 !/app/
+!/.github/
 
 # Generated builds and dependency caches
 **/target/
@@ -19,6 +20,7 @@ app/tools/build-dict/downloads/
 app/tools/story-data/work/
 app/tools/story-data/dist/
 app/crates/app/resources/*.gllpack
+app/crates/app/resources/.prepare-*/
 
 # Local settings, credentials and learning data
 .env

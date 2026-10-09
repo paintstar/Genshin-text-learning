@@ -4,15 +4,105 @@ use crate::state::AppState;
 use kb::pack;
 use serde::Deserialize;
 use sha2::{Digest, Sha256};
-use shared::dto::{StoryImportReport, StoryResourceInfo};
+use shared::dto::{StoryImportReport, StoryResourceInfo, StoryResourceProgress};
 use shared::{AppError, GameLang};
 use std::fs::File;
 use std::io::{Read, Seek, SeekFrom, Write};
 use std::path::Path;
+use std::sync::atomic::Ordering;
 use std::sync::Arc;
 
 // 压缩包与展开量分别受限，避免误选大文件或异常下载占满本地磁盘。
 const MAX_DOWNLOAD_BYTES: u64 = 1024 * 1024 * 1024;
+
+pub type ProgressCallback = Arc<dyn Fn(StoryResourceProgress) + Send + Sync>;
+
+/// 控制整个资源操作，不允许重复点击同时启动下载或导入。
+pub struct OperationGuard(Arc<AppState>);
+
+pub fn start_operation(state: &Arc<AppState>) -> Result<OperationGuard, AppError> {
+    state
+        .story_importing
+        .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
+        .map_err(|_| AppError::invalid_param("当前已有资源操作，请等待完成或取消"))?;
+    state.story_cancel.store(false, Ordering::SeqCst);
+    *state.story_progress.lock().unwrap() = None;
+    Ok(OperationGuard(state.clone()))
+}
+
+impl Drop for OperationGuard {
+    fn drop(&mut self) {
+        *self.0.story_progress.lock().unwrap() = None;
+        self.0.story_importing.store(false, Ordering::SeqCst);
+    }
+}
+
+pub fn cancel_operation(state: &AppState) -> bool {
+    if !state.story_importing.load(Ordering::SeqCst) {
+        return false;
+    }
+    state.story_cancel.store(true, Ordering::SeqCst);
+    state.story_cancel_notify.notify_waiters();
+    true
+}
+
+fn check_cancel(state: &AppState) -> Result<(), AppError> {
+    if state.story_cancel.load(Ordering::SeqCst) {
+        Err(AppError::cancelled(
+            "资源操作已取消，已有内容已保留；再次操作可以继续",
+        ))
+    } else {
+        Ok(())
+    }
+}
+
+fn report_progress(
+    state: &AppState,
+    emit: &ProgressCallback,
+    stage: &str,
+    completed: u64,
+    total: Option<u64>,
+) {
+    let progress = StoryResourceProgress {
+        stage: stage.into(),
+        completed,
+        total,
+    };
+    *state.story_progress.lock().unwrap() = Some(progress.clone());
+    emit(progress);
+}
+
+async fn cancelable<T>(
+    state: &AppState,
+    future: impl std::future::Future<Output = Result<T, reqwest::Error>>,
+) -> Result<T, AppError> {
+    let notified = state.story_cancel_notify.notified();
+    tokio::pin!(notified);
+    notified.as_mut().enable();
+    check_cancel(state)?;
+    tokio::select! {
+        _ = notified => Err(AppError::cancelled("资源操作已取消，已有剧情仍可阅读")),
+        result = future => result.map_err(|_| AppError::network("资源下载中断，已有剧情仍可阅读")),
+    }
+}
+
+pub fn update_urls(state: &AppState) -> Result<Vec<String>, AppError> {
+    let configured = state
+        .store
+        .with_read(|c| store::SettingsKvStore::get(c, "resources.update_urls"))?;
+    if let Some(json) = configured.filter(|s| !s.trim().is_empty()) {
+        return serde_json::from_str(&json)
+            .map_err(|_| AppError::invalid_param("资源更新地址格式错误"));
+    }
+    #[derive(Deserialize)]
+    #[serde(rename_all = "camelCase")]
+    struct Defaults {
+        story_manifest_urls: Vec<String>,
+    }
+    serde_json::from_str::<Defaults>(include_str!("../../../resource-sources.json"))
+        .map(|config| config.story_manifest_urls)
+        .map_err(|_| AppError::internal("默认资源配置不可用"))
+}
 
 pub fn resource_info(state: &AppState) -> Result<Option<StoryResourceInfo>, AppError> {
     let raw = state
@@ -28,25 +118,45 @@ fn io_error(_: impl std::fmt::Display) -> AppError {
 }
 
 pub fn import_file(state: &Arc<AppState>, path: &Path) -> Result<StoryImportReport, AppError> {
-    import_path(state, path, false)
+    let emit: ProgressCallback = Arc::new(|_| {});
+    import_file_with_progress(state, path, &emit)
+}
+
+pub fn import_file_with_progress(
+    state: &Arc<AppState>,
+    path: &Path,
+    emit: &ProgressCallback,
+) -> Result<StoryImportReport, AppError> {
+    import_path(state, path, false, emit)
 }
 
 pub fn import_bundled(
     state: &Arc<AppState>,
     path: &Path,
 ) -> Result<Option<StoryImportReport>, AppError> {
+    let emit: ProgressCallback = Arc::new(|_| {});
+    import_bundled_with_progress(state, path, &emit)
+}
+
+pub fn import_bundled_with_progress(
+    state: &Arc<AppState>,
+    path: &Path,
+    emit: &ProgressCallback,
+) -> Result<Option<StoryImportReport>, AppError> {
     let header = pack::PackReader::new(File::open(path).map_err(io_error)?).header()?;
     if resource_info(state)?.is_some_and(|info| info.created_at >= header.created_at) {
         return Ok(None);
     }
-    import_path(state, path, true).map(Some)
+    import_path(state, path, true, emit).map(Some)
 }
 
 fn import_path(
     state: &Arc<AppState>,
     path: &Path,
     only_newer: bool,
+    emit: &ProgressCallback,
 ) -> Result<StoryImportReport, AppError> {
+    check_cancel(state)?;
     let mut source = File::open(path).map_err(io_error)?;
     if source.metadata().map_err(io_error)?.len() > MAX_DOWNLOAD_BYTES {
         return Err(AppError::invalid_param("剧情资源包过大"));
@@ -65,13 +175,14 @@ fn import_path(
         .as_file_mut()
         .seek(SeekFrom::Start(0))
         .map_err(io_error)?;
-    import_staged(state, staged.as_file_mut(), only_newer)
+    import_staged(state, staged.as_file_mut(), only_newer, emit)
 }
 
 fn import_staged(
     state: &Arc<AppState>,
     file: &mut File,
     only_newer: bool,
+    emit: &ProgressCallback,
 ) -> Result<StoryImportReport, AppError> {
     // 导入、批量下载、单任务刷新都按任务事务提交；导入之间使用独立互斥锁。
     let _guard = state
@@ -92,20 +203,35 @@ fn import_staged(
             });
         }
     }
-    let inspection = pack::inspect(&mut *file)?;
+    let inspection = pack::inspect_with_progress(&mut *file, |completed, total| {
+        check_cancel(state)?;
+        if completed % 10 == 0 || completed == total {
+            report_progress(
+                state,
+                emit,
+                "validating",
+                completed as u64,
+                Some(total as u64),
+            );
+        }
+        Ok(())
+    })?;
     if inspection.header.fixture && !cfg!(debug_assertions) {
         return Err(AppError::integrity("这是开发测试资源，请使用正式剧情包"));
     }
     file.seek(SeekFrom::Start(0)).map_err(io_error)?;
     let mut reader = pack::PackReader::new(file);
     let header = reader.header()?;
+    check_cancel(state)?;
     state.store.with_write(|c| {
         kb::IndexIngestor::ingest_index(c, GameLang::Jp, &inspection.jp_index)?;
         kb::IndexIngestor::ingest_index(c, GameLang::Chs, &inspection.chs_index)
     })?;
     let mut imported = 0;
     let mut unchanged = 0;
+    report_progress(state, emit, "importing", 0, Some(header.quest_count as u64));
     while let Some(quest) = reader.next_quest()? {
+        check_cancel(state)?;
         let (jp, chs) = quest.parse()?;
         let jp_hash = kb::hash::content_hash(&jp);
         let chs_hash = kb::hash::content_hash(&chs);
@@ -118,6 +244,13 @@ fn import_staged(
         if same {
             crate::services::revalidate_provenance(state, quest.quest_id)?;
             unchanged += 1;
+            report_progress(
+                state,
+                emit,
+                "importing",
+                (imported + unchanged) as u64,
+                Some(header.quest_count as u64),
+            );
             continue;
         }
         state.store.with_write(|c| {
@@ -142,6 +275,13 @@ fn import_staged(
         })?;
         crate::services::revalidate_provenance(state, quest.quest_id)?;
         imported += 1;
+        report_progress(
+            state,
+            emit,
+            "importing",
+            (imported + unchanged) as u64,
+            Some(header.quest_count as u64),
+        );
     }
     let resource = StoryResourceInfo {
         data_version: header.data_version,
@@ -173,13 +313,11 @@ struct ReleaseManifest {
 }
 
 /// 清单下载地址由用户或维护端配置，私有仓库凭据不进入应用。
-pub async fn update(state: &Arc<AppState>) -> Result<StoryImportReport, AppError> {
-    let json = state
-        .store
-        .with_read(|c| store::SettingsKvStore::get(c, "resources.update_urls"))?
-        .unwrap_or_else(|| "[]".into());
-    let urls: Vec<String> =
-        serde_json::from_str(&json).map_err(|_| AppError::invalid_param("资源更新地址格式错误"))?;
+pub async fn update(
+    state: &Arc<AppState>,
+    emit: ProgressCallback,
+) -> Result<StoryImportReport, AppError> {
+    let urls = update_urls(state)?;
     if urls.is_empty() {
         return Err(AppError::resource_missing(
             "尚未配置资源更新地址，可以先导入离线剧情包",
@@ -199,12 +337,16 @@ pub async fn update(state: &Arc<AppState>) -> Result<StoryImportReport, AppError
                 attempt.follow()
             }
         }))
+        .connect_timeout(std::time::Duration::from_secs(20))
         .timeout(std::time::Duration::from_secs(600))
         .build()
         .map_err(|_| AppError::network("资源下载客户端初始化失败"))?;
     let mut last_error = AppError::network("资源更新源暂时不可用，已有剧情仍可阅读");
+    let mut older_source = false;
     for url in urls {
-        match download(&client, state, &url).await {
+        check_cancel(state)?;
+        report_progress(state, &emit, "checking", 0, None);
+        match download(&client, state, &url, &emit).await {
             Ok(None) => {
                 let resource = resource_info(state)?
                     .ok_or_else(|| AppError::internal("本地资源信息不可用"))?;
@@ -216,7 +358,27 @@ pub async fn update(state: &Arc<AppState>) -> Result<StoryImportReport, AppError
                 });
             }
             Ok(Some((mut staged, manifest))) => {
+                let header = match pack::PackReader::new(staged.as_file_mut()).header() {
+                    Ok(header) => header,
+                    Err(error) => {
+                        last_error = error;
+                        continue;
+                    }
+                };
+                staged
+                    .as_file_mut()
+                    .seek(SeekFrom::Start(0))
+                    .map_err(io_error)?;
+                if header.data_version != manifest.data_version {
+                    last_error = AppError::integrity("资源包与发布版本不一致");
+                    continue;
+                }
+                if resource_info(state)?.is_some_and(|info| info.created_at >= header.created_at) {
+                    older_source = true;
+                    continue;
+                }
                 let st = state.clone();
+                let progress = emit.clone();
                 let report = tokio::task::spawn_blocking(move || {
                     // 比对头部与下载清单，避免入口切换时混入其他版本。
                     let header = pack::PackReader::new(staged.as_file_mut()).header()?;
@@ -227,7 +389,7 @@ pub async fn update(state: &Arc<AppState>) -> Result<StoryImportReport, AppError
                         .as_file_mut()
                         .seek(SeekFrom::Start(0))
                         .map_err(io_error)?;
-                    import_staged(&st, staged.as_file_mut(), false)
+                    import_staged(&st, staged.as_file_mut(), true, &progress)
                 })
                 .await
                 .map_err(|_| AppError::internal("资源导入任务中断"))?;
@@ -238,6 +400,17 @@ pub async fn update(state: &Arc<AppState>) -> Result<StoryImportReport, AppError
             }
             Err(error) => last_error = error,
         }
+    }
+    check_cancel(state)?;
+    if older_source {
+        let resource =
+            resource_info(state)?.ok_or_else(|| AppError::internal("本地资源信息不可用"))?;
+        return Ok(StoryImportReport {
+            unchanged: resource.quest_count,
+            resource,
+            imported: 0,
+            degraded: 0,
+        });
     }
     Err(last_error)
 }
@@ -256,22 +429,15 @@ async fn download(
     client: &reqwest::Client,
     state: &AppState,
     url: &str,
+    emit: &ProgressCallback,
 ) -> Result<Option<(tempfile::NamedTempFile, ReleaseManifest)>, AppError> {
-    let mut response = client
-        .get(https_url(url)?)
-        .send()
-        .await
-        .map_err(|_| AppError::network("无法连接资源更新源，已有剧情仍可阅读"))?;
+    let mut response = cancelable(state, client.get(https_url(url)?).send()).await?;
     if !response.status().is_success() {
         return Err(AppError::data_source("资源更新清单暂时不可用"));
     }
     // 清单只含版本和下载信息，应当很小。
     let mut bytes = Vec::new();
-    while let Some(chunk) = response
-        .chunk()
-        .await
-        .map_err(|_| AppError::network("资源清单下载中断"))?
-    {
+    while let Some(chunk) = cancelable(state, response.chunk()).await? {
         if bytes.len() + chunk.len() > 64 * 1024 {
             return Err(AppError::integrity("资源清单过大"));
         }
@@ -290,28 +456,27 @@ async fn download(
     if resource_info(state)?.is_some_and(|info| info.data_version == manifest.data_version) {
         return Ok(None);
     }
-    let mut response = client
-        .get(https_url(&manifest.pack_url)?)
-        .send()
-        .await
-        .map_err(|_| AppError::network("剧情资源下载失败，已有剧情仍可阅读"))?;
+    let mut response = cancelable(state, client.get(https_url(&manifest.pack_url)?).send()).await?;
     if !response.status().is_success() {
         return Err(AppError::data_source("剧情资源包暂时不可用"));
     }
     let mut staged = tempfile::NamedTempFile::new_in(state.store.data_dir()).map_err(io_error)?;
     let mut size = 0u64;
     let mut hash = Sha256::new();
-    while let Some(chunk) = response
-        .chunk()
-        .await
-        .map_err(|_| AppError::network("剧情资源下载中断"))?
-    {
+    report_progress(state, emit, "downloading", 0, Some(manifest.size));
+    let mut last_progress = std::time::Instant::now();
+    while let Some(chunk) = cancelable(state, response.chunk()).await? {
         size += chunk.len() as u64;
         if size > manifest.size {
             return Err(AppError::integrity("剧情资源文件大小不一致"));
         }
         hash.update(&chunk);
         staged.write_all(&chunk).map_err(io_error)?;
+        if last_progress.elapsed() >= std::time::Duration::from_millis(200) || size == manifest.size
+        {
+            report_progress(state, emit, "downloading", size, Some(manifest.size));
+            last_progress = std::time::Instant::now();
+        }
     }
     if size != manifest.size || format!("{:x}", hash.finalize()) != manifest.sha256.to_lowercase() {
         return Err(AppError::integrity("剧情资源包下载不完整或校验失败"));

@@ -26,7 +26,9 @@
 
 ## 剧情资源（开发版）
 
-当前源码支持导入 `.gllpack` 双语剧情包，以及独立更新剧情资源。带资源包的源码构建可在首次启动时离线建立书库。资源维护仓库为 [Genshin-dataset](https://github.com/paintstar/Genshin-dataset)，目前为私有；当前已发布的 v0.1.0 仍采用按需联网下载。采集与构建方法见 [资源维护说明](app/tools/story-data/README.md)。
+正在准备的 v0.2.0 内置完整双语剧情、词典和注音资源，首次启动可离线建立书库，也支持导入 `.gllpack` 和独立更新剧情。更新过程显示进度，可以取消后重新操作；笔记和阅读进度保留。资源维护仓库 [Genshin-dataset](https://github.com/paintstar/Genshin-dataset) 已公开，源码内提供默认更新地址。当前已发布的 v0.1.0 仍采用按需联网下载。
+
+Windows x64 和 macOS Apple Silicon 的构建由 [桌面构建工作流](.github/workflows/desktop.yml) 生成，检查通过后提供安装包。发行草稿完成确认前，不替换当前稳定版。采集与构建方法见 [资源维护说明](app/tools/story-data/README.md)。
 
 ## 从源码运行
 

@@ -4,7 +4,7 @@ use crate::cancel::CancelRegistry;
 use ai::profile::AiProfileRow;
 use fetcher::{FetchScheduler, TermsGate, YattaClient};
 use kb::QuestSource;
-use shared::dto::{BatchSyncStatus, FetchJobState, FetchJobStatus};
+use shared::dto::{BatchSyncStatus, FetchJobState, FetchJobStatus, StoryResourceProgress};
 use shared::AppError;
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -95,6 +95,9 @@ pub struct AppState {
     pub batch_sync: Mutex<Option<BatchSyncStatus>>,
     pub story_import: Mutex<()>,
     pub story_importing: AtomicBool,
+    pub story_cancel: AtomicBool,
+    pub story_cancel_notify: tokio::sync::Notify,
+    pub story_progress: Mutex<Option<StoryResourceProgress>>,
     pub cancels: CancelRegistry,
     pub request_counter: AtomicU64,
     pub dict_db_path: PathBuf,

@@ -7,6 +7,7 @@ import { useAiStore } from '@/stores/ai'
 import { getGateway } from '@/gateway/provider'
 import type { AiProfileDto, AiProfileInput } from '@/gateway/bindings'
 import AppearanceSettings from './AppearanceSettings.vue'
+import StoryResourceStatus from '@/components/StoryResourceStatus.vue'
 const settings = useSettingsStore()
 const downloads = useDownloadsStore()
 const ai = useAiStore()
@@ -163,20 +164,22 @@ async function restore() {
     <div v-if="section === 'data'" class="settings-stack">
       <n-card title="离线剧情资源" size="small">
         <p class="setting-copy">导入剧情资源包后，搜索、双语阅读和学习功能可以离线使用。更新资源会保留你的笔记和阅读进度。</p>
+        <StoryResourceStatus />
         <n-tag v-if="settings.init?.storyResource" type="success" :bordered="false">
           资源版本 {{ settings.init.storyResource.dataVersion }} · {{ settings.init.storyResource.questCount }} 个任务
         </n-tag>
         <p v-else class="setting-copy">尚未导入资源包，也可以从下方数据源按需下载。</p>
         <n-space style="margin-top: 16px">
-          <n-button type="primary" :loading="settings.busy" :disabled="settings.busy || settings.init?.storyImporting || downloads.running" @click="settings.importStories()">导入离线剧情包</n-button>
-          <n-button :loading="settings.busy" :disabled="settings.busy || settings.init?.storyImporting || downloads.running || !settings.updateUrls.length" @click="settings.updateStories()">更新剧情资源</n-button>
+          <n-button type="primary" :loading="settings.busy" :disabled="settings.busy || settings.storyActive || downloads.running" @click="settings.importStories()">导入离线剧情包</n-button>
+          <n-button :loading="settings.busy" :disabled="settings.busy || settings.storyActive || downloads.running || !settings.updateUrls.length" @click="settings.updateStories()">更新剧情资源</n-button>
         </n-space>
         <p v-if="settings.storyReport" class="setting-copy">导入完成：更新 {{ settings.storyReport.imported }} 个任务，{{ settings.storyReport.unchanged }} 个任务内容未变。{{ settings.storyReport.degraded ? `${settings.storyReport.degraded} 个任务存在双语对齐缺口，阅读时会提示。` : '' }}</p>
         <n-collapse style="margin-top: 16px">
           <n-collapse-item title="资源更新地址" name="sources">
-            <p class="setting-copy">填写维护者提供的资源更新地址，每行一个；首个地址不可用时会尝试下一个。留空仍可导入离线包。</p>
+            <p class="setting-copy">已提供默认更新地址。需要备用源时，每行填写一个地址；首个地址不可用时会尝试下一个。留空并保存可关闭联网更新，仍可导入离线包。</p>
             <n-input v-model:value="updateUrls" type="textarea" placeholder="每行一个 HTTPS 资源清单地址" :autosize="{ minRows: 2, maxRows: 4 }" />
             <n-button size="small" style="margin-top: 12px" :disabled="actionBusy || settings.busy" @click="run(async () => { await settings.saveUpdateUrls(updateUrls); message.success('资源更新地址已保存') })">保存更新地址</n-button>
+            <n-button size="small" quaternary :disabled="actionBusy || settings.busy || settings.storyActive" @click="run(async () => { await settings.resetUpdateUrls(); updateUrls = settings.updateUrls.join('\n'); message.success('已恢复默认更新地址') })">恢复默认地址</n-button>
           </n-collapse-item>
         </n-collapse>
       </n-card>

@@ -581,8 +581,17 @@ pub struct StoryImportReport {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct StoryResourceProgress {
+    pub stage: String,
+    pub completed: u64,
+    pub total: Option<u64>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct AppInitInfo {
     pub story_importing: bool,
+    pub story_progress: Option<StoryResourceProgress>,
     pub story_resource: Option<StoryResourceInfo>,
     /// 索引是否已建立（首启索引同步是否需要）。
     pub index_ready: bool,

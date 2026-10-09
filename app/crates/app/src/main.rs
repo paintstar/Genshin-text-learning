@@ -56,17 +56,17 @@ fn main() {
                         .join("resources/story.gllpack")
                 });
             if story_pack.is_file() {
-                state
-                    .story_importing
-                    .store(true, std::sync::atomic::Ordering::SeqCst);
+                let operation = app_lib::resources::start_operation(&state)
+                    .map_err(|e| Box::new(e) as Box<dyn std::error::Error>)?;
                 let st = state.clone();
                 let handle = app.handle().clone();
                 tauri::async_runtime::spawn_blocking(move || {
-                    if let Err(error) = app_lib::resources::import_bundled(&st, &story_pack) {
+                    let progress_handle = handle.clone();
+                    let progress: app_lib::resources::ProgressCallback = std::sync::Arc::new(move |progress| { let _ = progress_handle.emit("story-resource-progress", progress); });
+                    if let Err(error) = app_lib::resources::import_bundled_with_progress(&st, &story_pack, &progress) {
                         eprintln!("随包剧情导入失败：{}", error.message);
                     }
-                    st.story_importing
-                        .store(false, std::sync::atomic::Ordering::SeqCst);
+                    drop(operation);
                     let _ = handle.emit("story-resources-changed", ());
                 });
             }
@@ -88,6 +88,7 @@ fn main() {
             app_lib::commands::story_pack_pick,
             app_lib::commands::story_pack_import,
             app_lib::commands::story_pack_update,
+            app_lib::commands::story_pack_cancel,
             app_lib::commands::update_check,
             app_lib::commands::update_refresh,
             app_lib::commands::batch_sync_start,

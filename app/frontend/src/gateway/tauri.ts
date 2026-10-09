@@ -14,6 +14,7 @@ import type {
   AiTestResult,
   AppInitInfo,
   StoryImportReport,
+  StoryResourceProgress,
   BackupSummary,
   BatchSyncReport,
   BatchSyncStatus,
@@ -57,6 +58,11 @@ export class TauriGateway implements Gateway {
   async storyPackPick(): Promise<string | null> { return call('story_pack_pick') }
   async storyPackImport(path: string): Promise<StoryImportReport> { return call('story_pack_import', { path }) }
   async storyPackUpdate(): Promise<StoryImportReport> { return call('story_pack_update') }
+  async storyPackCancel(): Promise<boolean> { return call('story_pack_cancel') }
+  async onStoryResourceProgress(cb: (progress: StoryResourceProgress) => void): Promise<() => void> {
+    if (!isTauri()) return () => {}
+    return listen<StoryResourceProgress>('story-resource-progress', event => cb(event.payload))
+  }
   async onStoryResourcesChanged(cb: () => void): Promise<() => void> {
     if (!isTauri()) return () => {}
     return listen('story-resources-changed', cb)

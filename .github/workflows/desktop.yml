@@ -1,0 +1,133 @@
+name: 构建离线桌面应用
+on:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: 可选草稿 Release 标签，留空仅生成安装包
+        type: string
+        default: ''
+  push:
+    branches: [main]
+    paths:
+      - 'app/crates/**'
+      - 'app/frontend/**'
+      - 'app/Cargo.*'
+      - 'app/resource-sources.json'
+      - 'app/tools/ci/**'
+      - '.github/workflows/desktop.yml'
+permissions:
+  contents: read
+concurrency:
+  group: desktop-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  resources:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-node@v7.1.0
+        with:
+          node-version: '22'
+      - run: node app/frontend/scripts/prepare-resources.mjs
+      - uses: actions/upload-artifact@v7.0.2
+        with:
+          name: offline-resources
+          path: |
+            app/crates/app/resources/dict.db
+            app/crates/app/resources/story.gllpack
+          if-no-files-found: error
+          retention-days: 7
+  build:
+    needs: resources
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            platform: windows-x64
+            bundles: nsis
+          - os: macos-latest
+            platform: macos-arm64
+            bundles: app
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 90
+    env:
+      CARGO_INCREMENTAL: '0'
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-node@v7.1.0
+        with:
+          node-version: '22'
+      - uses: dtolnay/rust-toolchain@686976e191b89faba57d3206551f0f330d8cb249
+        with:
+          toolchain: stable
+      - uses: actions/download-artifact@v8.0.2
+        with:
+          name: offline-resources
+          path: app/crates/app/resources
+      - run: npm ci
+        working-directory: app/frontend
+      - name: 检查前端
+        run: npm run test
+        working-directory: app/frontend
+      - name: 检查后端与边界类型
+        shell: bash
+        working-directory: app
+        run: |
+          cargo test --workspace --locked
+          cargo run --locked -p xtask -- bindings --check
+      - name: 构建完整离线包
+        run: npm run desktop:build -- --bundles ${{ matrix.bundles }}
+        working-directory: app/frontend
+      - name: Windows 安装和断网启动检查
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: ./app/tools/ci/windows-smoke.ps1
+      - name: macOS 启动检查和打包
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          python3 app/tools/ci/macos-smoke.py
+          mkdir -p app/target/release/distribution
+          ditto -c -k --sequesterRsrc --keepParent app/target/release/bundle/macos/GenshinLangLearning.app app/target/release/distribution/GenshinLangLearning-macos-arm64.zip
+      - uses: actions/upload-artifact@v7.0.2
+        if: success()
+        with:
+          name: desktop-${{ matrix.platform }}
+          path: |
+            app/target/release/bundle/nsis/*-setup.exe
+            app/target/release/distribution/*.zip
+          if-no-files-found: error
+          retention-days: 30
+      - uses: actions/upload-artifact@v7.0.2
+        if: always()
+        with:
+          name: desktop-check-${{ matrix.platform }}
+          path: app/target/smoke/*.png
+          if-no-files-found: ignore
+          retention-days: 7
+  draft:
+    if: github.event_name == 'workflow_dispatch' && inputs.release_tag != ''
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/download-artifact@v8.0.2
+        with:
+          pattern: desktop-windows-x64
+          path: distribution
+          merge-multiple: true
+      - uses: actions/download-artifact@v8.0.2
+        with:
+          pattern: desktop-macos-arm64
+          path: distribution
+          merge-multiple: true
+      - name: 保存待确认的发行包
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
+        run: |
+          gh release create "$RELEASE_TAG" distribution/* --draft --target "$GITHUB_SHA" --title "提瓦特 · 语旅 $RELEASE_TAG" --notes-file app/tools/ci/release-notes.md

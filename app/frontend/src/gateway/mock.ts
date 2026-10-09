@@ -155,11 +155,14 @@ export class MockGateway implements Gateway {
     return { resource: { dataVersion: 'preview', questCount: PREVIEW_QUESTS.length, createdAt: 0, importedAt: 0 }, imported: PREVIEW_QUESTS.length, unchanged: 0, degraded: 0 }
   }
   async storyPackUpdate(): Promise<StoryImportReport> { return this.storyPackImport() }
+  async storyPackCancel(): Promise<boolean> { return false }
+  async onStoryResourceProgress(): Promise<() => void> { return () => {} }
   async onStoryResourcesChanged(): Promise<() => void> { return () => {} }
   async appInit(): Promise<AppInitInfo> {
     return {
       storyResource: null,
       storyImporting: false,
+      storyProgress: null,
       indexReady: true,
       termsAccepted: true,
       aiAvailability: 'unconfigured',

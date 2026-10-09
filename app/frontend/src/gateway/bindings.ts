@@ -70,6 +70,7 @@ export interface AppInitInfo {
   pendingRestore: boolean
   schemaVersion: number
   storyImporting: boolean
+  storyProgress: StoryResourceProgress | null
   storyResource: StoryResourceInfo | null
   termsAccepted: boolean
 }
@@ -323,6 +324,12 @@ export interface StoryResourceInfo {
   dataVersion: string
   importedAt: number
   questCount: number
+}
+
+export interface StoryResourceProgress {
+  completed: number
+  stage: string
+  total: number | null
 }
 
 export interface SubQuestBrief {

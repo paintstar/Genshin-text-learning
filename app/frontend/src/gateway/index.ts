@@ -17,6 +17,7 @@ import type {
   AiTestResult,
   AppInitInfo,
   StoryImportReport,
+  StoryResourceProgress,
   BackupSummary,
   BatchSyncReport,
   BatchSyncStatus,
@@ -83,6 +84,8 @@ export interface Gateway {
   storyPackPick(): Promise<string | null>
   storyPackImport(path: string): Promise<StoryImportReport>
   storyPackUpdate(): Promise<StoryImportReport>
+  storyPackCancel(): Promise<boolean>
+  onStoryResourceProgress(cb: (progress: StoryResourceProgress) => void): Promise<() => void>
   onStoryResourcesChanged(cb: () => void): Promise<() => void>
   appInit(): Promise<AppInitInfo>
   settingsGet(key: string): Promise<string | null>

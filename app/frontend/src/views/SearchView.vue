@@ -6,6 +6,7 @@ import { useSettingsStore } from '@/stores/settings'
 import { useDownloadsStore } from '@/stores/downloads'
 import AppIcon from '@/components/AppIcon.vue'
 import ReadingHistory from '@/components/ReadingHistory.vue'
+import StoryResourceStatus from '@/components/StoryResourceStatus.vue'
 const router = useRouter()
 const reader = useReaderStore()
 const settings = useSettingsStore()
@@ -89,7 +90,7 @@ watch(canSearch, (ready, previous) => {
         v-if="canSearch"
         secondary
         :loading="settings.busy"
-        :disabled="settings.busy || (!!settings.init?.storyResource && !settings.updateUrls.length)"
+        :disabled="settings.busy || settings.storyActive || (!!settings.init?.storyResource && !settings.updateUrls.length)"
         @click="sync"
         ><template #icon><AppIcon name="download" :size="16" /></template
         >更新书库</n-button
@@ -104,7 +105,7 @@ watch(canSearch, (ready, previous) => {
       <div class="hero-orbit"><AppIcon name="compass" /></div>
     </section>
     <ReadingHistory />
-    <n-alert v-if="settings.init?.storyImporting" type="info" class="notice">正在准备随包剧情，完成后会自动显示全部内容。已有剧情仍可阅读。</n-alert>
+    <StoryResourceStatus class="notice" />
     <n-alert
       v-if="settings.message"
       type="error"
