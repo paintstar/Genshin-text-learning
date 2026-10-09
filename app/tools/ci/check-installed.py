@@ -6,6 +6,10 @@ import sqlite3
 import sys
 import time
 
+# Windows 的管道默认可能是 ANSI，中文日志固定使用 UTF-8。
+sys.stdout.reconfigure(encoding='utf-8')
+sys.stderr.reconfigure(encoding='utf-8')
+
 data_dir, pack_path = map(Path, sys.argv[1:3])
 with gzip.open(pack_path, 'rt', encoding='utf-8') as source:
     expected = json.loads(source.readline())

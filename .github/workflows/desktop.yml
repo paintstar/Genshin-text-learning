@@ -78,6 +78,7 @@ jobs:
           cargo test --workspace --locked
           cargo run --locked -p xtask -- bindings --check
       - name: 构建完整离线包
+        id: desktop_build
         run: npm run desktop:build -- --bundles ${{ matrix.bundles }}
         working-directory: app/frontend
       - name: Windows 安装和断网启动检查
@@ -88,11 +89,11 @@ jobs:
         if: runner.os == 'macOS'
         shell: bash
         run: |
-          python3 app/tools/ci/macos-smoke.py
           mkdir -p app/target/release/distribution
           ditto -c -k --sequesterRsrc --keepParent app/target/release/bundle/macos/GenshinLangLearning.app app/target/release/distribution/GenshinLangLearning-macos-arm64.zip
+          python3 app/tools/ci/macos-smoke.py
       - uses: actions/upload-artifact@v7.0.2
-        if: success()
+        if: always() && steps.desktop_build.outcome == 'success'
         with:
           name: desktop-${{ matrix.platform }}
           path: |
