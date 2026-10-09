@@ -243,7 +243,8 @@ mod tests {
         assert!(check.integrity_ok && check.compatible);
         assert!(svc.has_pending());
 
-        // 阶段二：替换。
+        // 阶段二发生在重启后，先关闭旧连接；Windows 不允许改名仍打开的数据库。
+        drop(store);
         assert!(svc.execute_pending_if_any().unwrap());
         assert!(!svc.has_pending());
 
@@ -258,6 +259,7 @@ mod tests {
             e.unwrap().file_name().to_string_lossy().starts_with("app.db.pre-restore-")
         }));
 
+        drop(store2);
         let _ = std::fs::remove_dir_all(&dir);
     }
 
