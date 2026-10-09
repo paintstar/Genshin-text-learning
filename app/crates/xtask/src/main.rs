@@ -328,7 +328,8 @@ fn run_bindings(check: bool) {
     let path =
         PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../frontend/src/gateway/bindings.ts");
     if check {
-        let existing = std::fs::read_to_string(&path).unwrap_or_default();
+        // Git 在 Windows 可检出 CRLF；只归一化换行，字段与类型仍严格比较。
+        let existing = std::fs::read_to_string(&path).unwrap_or_default().replace("\r\n", "\n");
         if existing != file {
             eprintln!("bindings.ts 与 Rust 单一来源不一致：请运行 `cargo run -p xtask -- bindings` 并提交");
             std::process::exit(1);
