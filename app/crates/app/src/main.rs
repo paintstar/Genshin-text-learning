@@ -3,10 +3,11 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 use app_lib::composition::{compose, ComposeArgs};
-use tauri::Manager;
+use tauri::{Emitter, Manager};
 
 fn main() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
             // 数据目录：系统应用数据目录（GLL_DATA_DIR 可覆盖，供开发/测试）。
             let data_dir = match std::env::var("GLL_DATA_DIR") {
@@ -45,6 +46,30 @@ fn main() {
                     }
                 }
             }
+            // 随包资源在后台导入；升级只接受更新的快照，联网更新由用户发起。
+            let story_pack = std::env::var("GLL_STORY_PACK")
+                .map(std::path::PathBuf::from)
+                .unwrap_or_else(|_| {
+                    app.path()
+                        .resource_dir()
+                        .unwrap_or_default()
+                        .join("resources/story.gllpack")
+                });
+            if story_pack.is_file() {
+                state
+                    .story_importing
+                    .store(true, std::sync::atomic::Ordering::SeqCst);
+                let st = state.clone();
+                let handle = app.handle().clone();
+                tauri::async_runtime::spawn_blocking(move || {
+                    if let Err(error) = app_lib::resources::import_bundled(&st, &story_pack) {
+                        eprintln!("随包剧情导入失败：{}", error.message);
+                    }
+                    st.story_importing
+                        .store(false, std::sync::atomic::Ordering::SeqCst);
+                    let _ = handle.emit("story-resources-changed", ());
+                });
+            }
             app.manage(state);
             Ok(())
         })
@@ -60,6 +85,9 @@ fn main() {
             app_lib::commands::cancel_fetch_job,
             app_lib::commands::overview_page,
             app_lib::commands::bootstrap_index_sync,
+            app_lib::commands::story_pack_pick,
+            app_lib::commands::story_pack_import,
+            app_lib::commands::story_pack_update,
             app_lib::commands::update_check,
             app_lib::commands::update_refresh,
             app_lib::commands::batch_sync_start,

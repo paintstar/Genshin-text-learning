@@ -5,4 +5,5 @@ edition.workspace = true
 
 [dependencies]
 shared = { path = "../shared" }
+kb = { path = "../kb" }
 serde_json = { workspace = true }

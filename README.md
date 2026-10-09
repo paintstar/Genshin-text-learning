@@ -24,6 +24,10 @@
 
 基础阅读、查词、注音和笔记无需配置 AI。部分词条仅有英文释义，游戏专有名词的自动注音可能存在偏差。
 
+## 剧情资源（开发版）
+
+当前源码支持导入 `.gllpack` 双语剧情包，以及独立更新剧情资源。带资源包的源码构建可在首次启动时离线建立书库。资源维护仓库为 [Genshin-dataset](https://github.com/paintstar/Genshin-dataset)，目前为私有；当前已发布的 v0.1.0 仍采用按需联网下载。采集与构建方法见 [资源维护说明](app/tools/story-data/README.md)。
+
 ## 从源码运行
 
 需要 Node.js 22.13+、Rust stable 和对应平台的 [Tauri 开发环境](https://v2.tauri.app/start/prerequisites/)。

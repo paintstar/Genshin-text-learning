@@ -20,6 +20,40 @@ fn main() {
     let args: Vec<String> = std::env::args().collect();
     let cmd = args.get(1).map(String::as_str).unwrap_or("help");
     match cmd {
+        "story-pack" => {
+            let result = (|| -> Result<(), shared::AppError> {
+                let path = args.get(3).ok_or_else(|| {
+                    shared::AppError::invalid_param(
+                        "用法: story-pack inspect <资源包> [--allow-fixture]",
+                    )
+                })?;
+                if args.get(2).map(String::as_str) != Some("inspect") {
+                    return Err(shared::AppError::invalid_param("仅支持 story-pack inspect"));
+                }
+                let file = std::fs::File::open(path)
+                    .map_err(|_| shared::AppError::resource_missing("无法打开剧情资源包"))?;
+                let pack = kb::pack::inspect(file)?;
+                if pack.header.fixture && !args.iter().any(|a| a == "--allow-fixture") {
+                    return Err(shared::AppError::integrity("测试资源不能用于正式发布"));
+                }
+                println!(
+                    "版本 {}：{} 个双语任务，{} 个任务存在对齐缺口{}",
+                    pack.header.data_version,
+                    pack.header.quest_count,
+                    pack.degraded,
+                    if pack.header.fixture {
+                        "（开发样本）"
+                    } else {
+                        ""
+                    }
+                );
+                Ok(())
+            })();
+            if let Err(error) = result {
+                eprintln!("{}", error.message);
+                std::process::exit(1);
+            }
+        }
         "bindings" => {
             let check = args.iter().any(|a| a == "--check");
             run_bindings(check);
@@ -182,6 +216,8 @@ fn type_overrides() -> Vec<(&'static str, &'static str, &'static str)> {
         ("AiConversationDto", "questId", "number | null"),
         ("CandidateForm", "sourceNote", "string | null"),
         ("AppError", "detail", "string | null"),
+        ("AppInitInfo", "storyResource", "StoryResourceInfo | null"),
+        ("StoryImportReport", "resource", "StoryResourceInfo"),
         ("OpenQuestResult", "snapshot", "GraphSnapshot | null"),
         ("OpenQuestResult", "job", "FetchJobStatus | null"),
         ("QuestOverview", "summary", "QuestSummary"),

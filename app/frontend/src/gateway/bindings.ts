@@ -69,6 +69,8 @@ export interface AppInitInfo {
   indexReady: boolean
   pendingRestore: boolean
   schemaVersion: number
+  storyImporting: boolean
+  storyResource: StoryResourceInfo | null
   termsAccepted: boolean
 }
 
@@ -307,6 +309,20 @@ export interface SaveNoteInput {
   termReading: string | null
   termText: string | null
   userNote: string | null
+}
+
+export interface StoryImportReport {
+  degraded: number
+  imported: number
+  resource: StoryResourceInfo
+  unchanged: number
+}
+
+export interface StoryResourceInfo {
+  createdAt: number
+  dataVersion: string
+  importedAt: number
+  questCount: number
 }
 
 export interface SubQuestBrief {

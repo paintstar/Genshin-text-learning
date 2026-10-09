@@ -8,6 +8,7 @@ import type {
   AiAvailability,
   AiTestResult,
   AppInitInfo,
+  StoryImportReport,
   BatchSyncStatus,
   BatchSyncReport,
   SyncProgress,
@@ -149,8 +150,16 @@ export class MockGateway implements Gateway {
   private doneListeners = new Set<(r: BatchSyncReport) => void>()
   private jobListeners = new Set<(j: FetchJobStatus) => void>()
 
+  async storyPackPick(): Promise<string | null> { return 'preview.gllpack' }
+  async storyPackImport(): Promise<StoryImportReport> {
+    return { resource: { dataVersion: 'preview', questCount: PREVIEW_QUESTS.length, createdAt: 0, importedAt: 0 }, imported: PREVIEW_QUESTS.length, unchanged: 0, degraded: 0 }
+  }
+  async storyPackUpdate(): Promise<StoryImportReport> { return this.storyPackImport() }
+  async onStoryResourcesChanged(): Promise<() => void> { return () => {} }
   async appInit(): Promise<AppInitInfo> {
     return {
+      storyResource: null,
+      storyImporting: false,
       indexReady: true,
       termsAccepted: true,
       aiAvailability: 'unconfigured',

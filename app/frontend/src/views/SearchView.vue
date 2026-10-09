@@ -47,6 +47,11 @@ async function search() {
   if (canSearch.value) await reader.search(query.value, type.value)
 }
 async function sync() {
+  if (settings.init?.storyResource) {
+    await settings.updateStories()
+    await search()
+    return
+  }
   if (!settings.init?.termsAccepted) await settings.acceptTerms()
   if (settings.init?.termsAccepted) {
     await settings.bootstrap()
@@ -60,6 +65,7 @@ function filter(value: string) {
 onMounted(() => {
   if (canSearch.value) void search()
 })
+watch(() => settings.init?.storyResource?.dataVersion, () => { void search() })
 watch(() => downloads.completedCount, () => { void search() })
 watch(() => reader.searchResults, results => {
   const cached = new Set(results.filter(q => q.hasCachedBody).map(q => q.questId))
@@ -83,6 +89,7 @@ watch(canSearch, (ready, previous) => {
         v-if="canSearch"
         secondary
         :loading="settings.busy"
+        :disabled="settings.busy || (!!settings.init?.storyResource && !settings.updateUrls.length)"
         @click="sync"
         ><template #icon><AppIcon name="download" :size="16" /></template
         >更新书库</n-button
@@ -97,6 +104,7 @@ watch(canSearch, (ready, previous) => {
       <div class="hero-orbit"><AppIcon name="compass" /></div>
     </section>
     <ReadingHistory />
+    <n-alert v-if="settings.init?.storyImporting" type="info" class="notice">正在准备随包剧情，完成后会自动显示全部内容。已有剧情仍可阅读。</n-alert>
     <n-alert
       v-if="settings.message"
       type="error"
@@ -131,13 +139,19 @@ watch(canSearch, (ready, previous) => {
         {{ item.label }}
       </button>
     </div>
-    <div v-if="settings.init && !canSearch" class="empty-state">
+    <div v-if="settings.init?.storyImporting && !canSearch" class="empty-state">
+      <n-spin size="large" />
+      <h3>正在准备本地剧情书库</h3>
+      <p>首次导入需要一点时间，完成后即可开始阅读。</p>
+    </div>
+    <div v-else-if="settings.init && !canSearch" class="empty-state">
       <AppIcon name="book" :size="38" />
       <h3>准备好你的第一本剧情书</h3>
       <p>
-        首次使用需要联网下载任务目录。之后搜索在本地完成，打开任务时下载对应剧情，读过的内容可离线重温。
+        导入离线剧情包即可开始阅读，也可以联网下载任务目录，再按需保存双语正文。
       </p>
-      <n-button type="primary" :loading="settings.busy" @click="sync"
+      <n-button type="primary" :loading="settings.busy" :disabled="settings.busy" @click="settings.importStories()">导入离线剧情包</n-button>
+      <n-button secondary :loading="settings.busy" :disabled="settings.busy" @click="sync"
         >连接并下载任务目录</n-button
       >
     </div>
@@ -146,11 +160,11 @@ watch(canSearch, (ready, previous) => {
         <template v-if="selecting">
           <n-checkbox :checked="allSelected" :disabled="!selectable.length" @update:checked="selectVisible">全选当前结果</n-checkbox>
           <span>已选 {{ selected.length }} 项</span>
-          <n-button type="primary" size="small" :loading="downloads.starting" :disabled="!selected.length || downloads.running || downloads.starting" @click="downloadSelected">下载所选</n-button>
+          <n-button type="primary" size="small" :loading="downloads.starting" :disabled="!selected.length || settings.init?.storyImporting || downloads.running || downloads.starting" @click="downloadSelected">下载所选</n-button>
           <n-button size="small" quaternary @click="closeSelection">取消选择</n-button>
           <p class="selection-hint">每项包含全部章节。可跨搜索结果选择；下载时可以继续阅读已保存的剧情。{{ downloads.running ? '当前已有后台下载，请等待完成或取消后再下载所选任务。' : '' }}</p>
         </template>
-        <n-button v-else secondary size="small" @click="selecting = true">批量下载</n-button>
+        <n-button v-else secondary size="small" :disabled="settings.init?.storyImporting" @click="selecting = true">批量下载</n-button>
       </div>
       <div class="section-line">
         <h2>

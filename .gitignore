@@ -16,6 +16,9 @@ app/crates/app/gen/
 app/crates/app/resources/*.db
 app/crates/app/resources/*audit-report*.json
 app/tools/build-dict/downloads/
+app/tools/story-data/work/
+app/tools/story-data/dist/
+app/crates/app/resources/*.gllpack
 
 # Local settings, credentials and learning data
 .env

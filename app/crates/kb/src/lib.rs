@@ -8,6 +8,7 @@
 pub mod classify;
 pub mod hash;
 pub mod ingest;
+pub mod pack;
 pub mod parser;
 pub mod port;
 pub mod query;
@@ -15,7 +16,9 @@ pub mod sequencer;
 
 pub use classify::{AlignClassifier, ConflictDetail, RowKey};
 pub use ingest::{IndexIngestor, IngestResult, QuestIngestor};
-pub use parser::{NodeKind, ParsedDetail, ParsedNode, ParsedRow, ParsedSub, ParsedTree, QuestIndexEntry};
+pub use parser::{
+    NodeKind, ParsedDetail, ParsedNode, ParsedRow, ParsedSub, ParsedTree, QuestIndexEntry,
+};
 pub use port::{FetchDetailOutcome, HttpValidator, QuestSource, RawResponse};
 pub use query::{ContentReadService, GraphQueryService, QuestSearchService, UpdateCompare};
 

@@ -131,6 +131,8 @@ pub fn compose(args: ComposeArgs) -> Result<Arc<AppState>, AppError> {
         ai_guard: guard,
         fetch_jobs: FetchJobs::default(),
         batch_sync: Mutex::new(None),
+        story_import: Mutex::new(()),
+        story_importing: std::sync::atomic::AtomicBool::new(false),
         cancels: crate::cancel::CancelRegistry::default(),
         request_counter: AtomicU64::new(1),
         dict_db_path: args.dict_db_path,

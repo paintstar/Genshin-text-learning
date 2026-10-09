@@ -19,7 +19,11 @@ serde = { workspace = true }
 serde_json = { workspace = true }
 rusqlite = { workspace = true }
 tokio = { workspace = true }
+reqwest = { workspace = true }
+sha2 = { workspace = true }
+tempfile = "3"
 tauri = { version = "2", features = [] }
+tauri-plugin-dialog = "2"
 tauri-build = { version = "2", features = [] }
 
 [build-dependencies]
@@ -27,3 +31,4 @@ tauri-build = { version = "2", features = [] }
 
 [dev-dependencies]
 async-trait = { workspace = true }
+flate2 = { workspace = true }

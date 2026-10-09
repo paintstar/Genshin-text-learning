@@ -12,6 +12,7 @@ const downloads = useDownloadsStore()
 const ai = useAiStore()
 const message = useMessage()
 const section = ref('data')
+const updateUrls = ref('')
 const actionBusy = ref(false)
 const backupPath = ref('')
 const restorePath = ref('')
@@ -31,6 +32,7 @@ const emptyProfile = (): AiProfileInput => ({
 const editing = ref(emptyProfile())
 onMounted(async () => {
   await settings.refreshInit()
+  updateUrls.value = settings.updateUrls.join('\n')
   await run(() => ai.refreshState())
 })
 async function run(fn: () => Promise<unknown>) {
@@ -159,7 +161,26 @@ async function restore() {
       >{{ settings.message }}</n-alert
     >
     <div v-if="section === 'data'" class="settings-stack">
-      <n-card title="剧情数据源" size="small"
+      <n-card title="离线剧情资源" size="small">
+        <p class="setting-copy">导入剧情资源包后，搜索、双语阅读和学习功能可以离线使用。更新资源会保留你的笔记和阅读进度。</p>
+        <n-tag v-if="settings.init?.storyResource" type="success" :bordered="false">
+          资源版本 {{ settings.init.storyResource.dataVersion }} · {{ settings.init.storyResource.questCount }} 个任务
+        </n-tag>
+        <p v-else class="setting-copy">尚未导入资源包，也可以从下方数据源按需下载。</p>
+        <n-space style="margin-top: 16px">
+          <n-button type="primary" :loading="settings.busy" :disabled="settings.busy || settings.init?.storyImporting || downloads.running" @click="settings.importStories()">导入离线剧情包</n-button>
+          <n-button :loading="settings.busy" :disabled="settings.busy || settings.init?.storyImporting || downloads.running || !settings.updateUrls.length" @click="settings.updateStories()">更新剧情资源</n-button>
+        </n-space>
+        <p v-if="settings.storyReport" class="setting-copy">导入完成：更新 {{ settings.storyReport.imported }} 个任务，{{ settings.storyReport.unchanged }} 个任务内容未变。{{ settings.storyReport.degraded ? `${settings.storyReport.degraded} 个任务存在双语对齐缺口，阅读时会提示。` : '' }}</p>
+        <n-collapse style="margin-top: 16px">
+          <n-collapse-item title="资源更新地址" name="sources">
+            <p class="setting-copy">填写维护者提供的资源更新地址，每行一个；首个地址不可用时会尝试下一个。留空仍可导入离线包。</p>
+            <n-input v-model:value="updateUrls" type="textarea" placeholder="每行一个 HTTPS 资源清单地址" :autosize="{ minRows: 2, maxRows: 4 }" />
+            <n-button size="small" style="margin-top: 12px" :disabled="actionBusy || settings.busy" @click="run(async () => { await settings.saveUpdateUrls(updateUrls); message.success('资源更新地址已保存') })">保存更新地址</n-button>
+          </n-collapse-item>
+        </n-collapse>
+      </n-card>
+      <n-card title="在线剧情数据源" size="small"
         ><p class="setting-copy">
           剧情来自 Project Amber。你可以查看<a
             href="https://gi.yatta.moe"
@@ -187,7 +208,7 @@ async function restore() {
       >
       <n-card title="本地剧情书库" size="small"
         ><p class="setting-copy">
-          搜索使用本地目录；打开任务时会下载对应的双语正文。建议按需阅读，也可以提前下载以便离线使用。
+          搜索使用本地目录；已导入或下载的正文直接读取，尚未保存的任务可以从在线数据源获取。
         </p>
         <n-space
           ><n-button
@@ -198,7 +219,7 @@ async function restore() {
             >更新任务目录</n-button
           ><n-button
             :disabled="
-              settings.busy || downloads.running || downloads.starting ||
+              settings.busy || settings.init?.storyImporting || downloads.running || downloads.starting ||
               !settings.init?.indexReady ||
               !settings.init?.termsAccepted
             "

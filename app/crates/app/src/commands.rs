@@ -6,6 +6,7 @@ use crate::state::AppState;
 use ai::client::AiRequest;
 use shared::dto::*;
 use shared::{AppError, GameLang, OptRef};
+use std::path::Path;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use tauri::{AppHandle, Emitter, State};
@@ -166,6 +167,51 @@ pub fn overview_page(
 }
 
 // --- 知识库更新与同步（→ app 应用服务） -------------------------------------
+
+#[tauri::command]
+pub async fn story_pack_pick(app: AppHandle) -> Result<Option<String>, AppError> {
+    use tauri_plugin_dialog::DialogExt;
+    tokio::task::spawn_blocking(move || {
+        app.dialog()
+            .file()
+            .add_filter("剧情资源包", &["gllpack"])
+            .blocking_pick_file()
+            .map(|path| {
+                path.into_path()
+                    .map(|p| p.to_string_lossy().into_owned())
+                    .map_err(|_| AppError::invalid_param("请选择本地剧情资源文件"))
+            })
+            .transpose()
+    })
+    .await
+    .map_err(|_| AppError::internal("文件选择窗口不可用"))?
+}
+
+#[tauri::command]
+pub async fn story_pack_import(
+    app: AppHandle,
+    state: S<'_>,
+    path: String,
+) -> Result<StoryImportReport, AppError> {
+    let state = state.inner().clone();
+    let report = tokio::task::spawn_blocking(move || {
+        crate::resources::import_file(&state, Path::new(&path))
+    })
+    .await
+    .map_err(|_| AppError::internal("剧情导入任务中断"))??;
+    let _ = app.emit("story-resources-changed", ());
+    Ok(report)
+}
+
+#[tauri::command]
+pub async fn story_pack_update(
+    app: AppHandle,
+    state: S<'_>,
+) -> Result<StoryImportReport, AppError> {
+    let report = crate::resources::update(state.inner()).await?;
+    let _ = app.emit("story-resources-changed", ());
+    Ok(report)
+}
 
 #[tauri::command]
 pub async fn bootstrap_index_sync(state: S<'_>) -> Result<UpdateReport, AppError> {
@@ -801,6 +847,8 @@ pub fn app_init(state: S) -> Result<AppInitInfo, AppError> {
     )
     .has_pending();
     Ok(AppInitInfo {
+        story_importing: state.story_importing.load(Ordering::SeqCst),
+        story_resource: crate::resources::resource_info(&state)?,
         index_ready,
         terms_accepted: state.gate.is_accepted(),
         ai_availability: if has_active {

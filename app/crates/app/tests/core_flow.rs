@@ -970,3 +970,234 @@ async fn background_download_deduplicates_reader_and_can_cancel_without_blocking
         .with_read(|c| kb::query::quest_has_body(c, 2))
         .unwrap());
 }
+
+fn story_pack_bytes(
+    version: &str,
+    quests: Vec<(i64, Vec<u8>, Vec<u8>)>,
+    tamper_last: bool,
+) -> Vec<u8> {
+    use sha2::{Digest, Sha256};
+    use std::io::Write;
+    let idx = index_json(quests.iter().map(|(id, _, _)| json!({"id": id, "type": "wq", "chapterTitle": format!("任务{id}"), "chapterCount": 1})).collect());
+    let header = kb::pack::PackHeader {
+        format_version: kb::pack::FORMAT_VERSION,
+        data_version: version.into(),
+        created_at: version.rsplit('.').next().and_then(|v| v.parse().ok()).unwrap_or(0),
+        quest_count: quests.len(),
+        fixture: false,
+        index: kb::pack::PackIndex {
+            jp: serde_json::from_slice(&idx).unwrap(),
+            chs: serde_json::from_slice(&idx).unwrap(),
+        },
+    };
+    let mut gzip = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::default());
+    serde_json::to_writer(&mut gzip, &header).unwrap();
+    gzip.write_all(b"\n").unwrap();
+    let count = quests.len();
+    for (i, (quest_id, jp, chs)) in quests.into_iter().enumerate() {
+        let record = kb::pack::PackQuest {
+            quest_id,
+            jp_sha256: if tamper_last && i + 1 == count {
+                "0".repeat(64)
+            } else {
+                format!("{:x}", Sha256::digest(&jp))
+            },
+            chs_sha256: format!("{:x}", Sha256::digest(&chs)),
+            jp: serde_json::from_slice(&jp).unwrap(),
+            chs: serde_json::from_slice(&chs).unwrap(),
+        };
+        serde_json::to_writer(&mut gzip, &record).unwrap();
+        gzip.write_all(b"\n").unwrap();
+    }
+    gzip.finish().unwrap()
+}
+
+#[test]
+fn story_pack_import_works_offline_and_survives_restart_without_pack() {
+    let env = setup_env();
+    *env.source.inner.fail_with.lock().unwrap() = Some(shared::AppError::network("离线"));
+    let path = env.dir.join("story.gllpack");
+    std::fs::write(
+        &path,
+        story_pack_bytes(
+            "offline.1",
+            vec![(1702, diamond_jp(), diamond_chs())],
+            false,
+        ),
+    )
+    .unwrap();
+    let report = app_lib::resources::import_file(&env.state, &path).unwrap();
+    assert_eq!(report.imported, 1);
+    assert!(!env.state.gate.is_accepted(), "本地导入不要求连接在线源");
+    let found = env
+        .state
+        .store
+        .with_read(|c| kb::QuestSearchService::search(c, "任务1702", None, 10))
+        .unwrap();
+    assert!(found[0].has_cached_body);
+    let repeated = app_lib::resources::import_file(&env.state, &path).unwrap();
+    assert_eq!((repeated.imported, repeated.unchanged), (0, 1));
+    std::fs::remove_file(path).unwrap();
+    let restarted = compose(ComposeArgs {
+        data_dir: env.dir.clone(),
+        dict_db_path: env.dir.join("missing.db"),
+        source_base_url: "stub://offline".into(),
+        fetch_interval_ms: 0,
+        source_override: Some(env.source.clone()),
+        secret_vault: Some(Arc::new(store::InMemoryVault::default())),
+    })
+    .unwrap();
+    let opened =
+        app_lib::services::QuestOpenService::open(restarted.clone(), 1702, "0", |_| {}).unwrap();
+    assert!(opened.cached);
+    assert!(!opened.snapshot.unwrap().rows.is_empty());
+    assert!(
+        env.source.calls.lock().unwrap().is_empty(),
+        "离线读取不发请求"
+    );
+    assert_eq!(
+        app_lib::resources::resource_info(&restarted)
+            .unwrap()
+            .unwrap()
+            .data_version,
+        "offline.1"
+    );
+    let _ = std::fs::remove_dir_all(&env.dir);
+}
+
+#[test]
+fn story_pack_update_preserves_learning_data_and_rechecks_original_sentence() {
+    let env = setup_env();
+    let path = env.dir.join("story.gllpack");
+    std::fs::write(
+        &path,
+        story_pack_bytes(
+            "offline.1",
+            vec![(1702, diamond_jp(), diamond_chs())],
+            false,
+        ),
+    )
+    .unwrap();
+    app_lib::resources::import_file(&env.state, &path).unwrap();
+    let loc = DlgLoc::new(1702, "0", "0", 0, "102");
+    let note = env
+        .state
+        .store
+        .with_write(|c| {
+            study::ReadingProgressService::save(c, 1702, "0", &loc, 0, "[]")?;
+            store::SettingsKvStore::set(c, "reader.font_size", "large")?;
+            study::NoteRepository::save(
+                c,
+                &SaveNoteInput {
+                    kind: "sentence".into(),
+                    opt_ref: OptRef::new(&loc, 0),
+                    term_text: None,
+                    term_reading: None,
+                    term_base: None,
+                    context_text: Some("行こう！".into()),
+                    context_role: Some("パイモン".into()),
+                    context_next: Some("104".into()),
+                    context_is_choice: false,
+                    analysis_snapshot_json: None,
+                    user_note: Some("保留我的理解".into()),
+                    tags: vec!["学习".into()],
+                },
+            )
+        })
+        .unwrap();
+    let changed = String::from_utf8(diamond_jp())
+        .unwrap()
+        .replace("行こう！", "一緒に行こう！")
+        .into_bytes();
+    std::fs::write(
+        &path,
+        story_pack_bytes("offline.2", vec![(1702, changed, diamond_chs())], false),
+    )
+    .unwrap();
+    let report = app_lib::resources::import_file(&env.state, &path).unwrap();
+    assert_eq!(report.imported, 1);
+    env.state
+        .store
+        .with_read(|c| {
+            let saved = study::NoteRepository::load(c, note)?.unwrap();
+            assert_eq!(saved.context_text.as_deref(), Some("行こう！"));
+            assert_eq!(saved.user_note.as_deref(), Some("保留我的理解"));
+            assert!(saved.provenance_stale);
+            assert_eq!(saved.tags, vec!["学习"]);
+            assert_eq!(
+                study::ReadingProgressService::load_for_quest(c, 1702)?[0].dialog_id,
+                "102"
+            );
+            assert_eq!(
+                store::SettingsKvStore::get(c, "reader.font_size")?.as_deref(),
+                Some("large")
+            );
+            Ok(())
+        })
+        .unwrap();
+    let _ = std::fs::remove_dir_all(&env.dir);
+}
+
+#[test]
+fn story_pack_rejects_late_corruption_before_any_database_write() {
+    let env = setup_env();
+    let path = env.dir.join("story.gllpack");
+    std::fs::write(
+        &path,
+        story_pack_bytes(
+            "offline.1",
+            vec![(1702, diamond_jp(), diamond_chs())],
+            false,
+        ),
+    )
+    .unwrap();
+    app_lib::resources::import_file(&env.state, &path).unwrap();
+    let changed = String::from_utf8(diamond_jp())
+        .unwrap()
+        .replace("行こう！", "違う文章")
+        .into_bytes();
+    let quests = vec![
+        (1702, changed, diamond_chs()),
+        (1703, diamond_jp(), diamond_chs()),
+    ];
+    let mut truncated = story_pack_bytes("broken.2", quests.clone(), false);
+    truncated.truncate(truncated.len() - 8);
+    for broken in [story_pack_bytes("broken.2", quests, true), truncated] {
+        std::fs::write(&path, broken).unwrap();
+        assert!(app_lib::resources::import_file(&env.state, &path).is_err());
+        env.state
+            .store
+            .with_read(|c| {
+                assert!(kb::query::load_summary(c, 1703)?.is_none());
+                let rows = kb::GraphQueryService::graph_snapshot(c, 1702, "0", GameLang::Jp)?.rows;
+                assert!(rows.iter().any(|r| r.text.as_deref() == Some("行こう！")));
+                Ok(())
+            })
+            .unwrap();
+        assert_eq!(
+            app_lib::resources::resource_info(&env.state)
+                .unwrap()
+                .unwrap()
+                .data_version,
+            "offline.1"
+        );
+    }
+    let _ = std::fs::remove_dir_all(&env.dir);
+}
+
+#[test]
+fn bundled_story_upgrade_imports_newer_snapshot_without_downgrading() {
+    let env = setup_env();
+    let path = env.dir.join("story.gllpack");
+    let first = story_pack_bytes("offline.1", vec![(1702, diamond_jp(), diamond_chs())], false);
+    std::fs::write(&path, &first).unwrap();
+    assert_eq!(app_lib::resources::import_bundled(&env.state, &path).unwrap().unwrap().imported, 1);
+    assert!(app_lib::resources::import_bundled(&env.state, &path).unwrap().is_none());
+    let newer = String::from_utf8(diamond_jp()).unwrap().replace("行こう！", "新しい文章").into_bytes();
+    std::fs::write(&path, story_pack_bytes("offline.2", vec![(1702, newer, diamond_chs())], false)).unwrap();
+    assert_eq!(app_lib::resources::import_bundled(&env.state, &path).unwrap().unwrap().resource.data_version, "offline.2");
+    std::fs::write(&path, first).unwrap();
+    assert!(app_lib::resources::import_bundled(&env.state, &path).unwrap().is_none());
+    assert_eq!(app_lib::resources::resource_info(&env.state).unwrap().unwrap().data_version, "offline.2");
+    let _ = std::fs::remove_dir_all(&env.dir);
+}

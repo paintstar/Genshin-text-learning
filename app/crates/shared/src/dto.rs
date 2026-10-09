@@ -562,7 +562,28 @@ pub struct RestoreCheck {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct StoryResourceInfo {
+    pub data_version: String,
+    pub quest_count: usize,
+    #[serde(default)]
+    pub created_at: i64,
+    pub imported_at: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StoryImportReport {
+    pub resource: StoryResourceInfo,
+    pub imported: usize,
+    pub unchanged: usize,
+    pub degraded: usize,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct AppInitInfo {
+    pub story_importing: bool,
+    pub story_resource: Option<StoryResourceInfo>,
     /// 索引是否已建立（首启索引同步是否需要）。
     pub index_ready: bool,
     /// M0 源站条款门禁是否已通过。

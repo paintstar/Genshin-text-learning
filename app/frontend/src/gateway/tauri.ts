@@ -13,6 +13,7 @@ import type {
   AiStreamEvent,
   AiTestResult,
   AppInitInfo,
+  StoryImportReport,
   BackupSummary,
   BatchSyncReport,
   BatchSyncStatus,
@@ -53,6 +54,13 @@ async function call<T>(cmd: string, args?: Json): Promise<T> {
 }
 
 export class TauriGateway implements Gateway {
+  async storyPackPick(): Promise<string | null> { return call('story_pack_pick') }
+  async storyPackImport(path: string): Promise<StoryImportReport> { return call('story_pack_import', { path }) }
+  async storyPackUpdate(): Promise<StoryImportReport> { return call('story_pack_update') }
+  async onStoryResourcesChanged(cb: () => void): Promise<() => void> {
+    if (!isTauri()) return () => {}
+    return listen('story-resources-changed', cb)
+  }
   async appInit(): Promise<AppInitInfo> {
     return call('app_init')
   }

@@ -6,6 +6,31 @@ use serde_json::{json, Value};
 
 pub fn samples() -> Vec<(&'static str, Value)> {
     vec![
+        (
+            "story_resource_info",
+            serde_json::to_value(shared::dto::StoryResourceInfo {
+                data_version: "2026-10-09.1".into(),
+                quest_count: 1,
+                created_at: 0,
+                imported_at: 0,
+            })
+            .unwrap(),
+        ),
+        (
+            "story_import_report",
+            serde_json::to_value(shared::dto::StoryImportReport {
+                resource: shared::dto::StoryResourceInfo {
+                    data_version: "2026-10-09.1".into(),
+                    quest_count: 1,
+                    created_at: 0,
+                    imported_at: 0,
+                },
+                imported: 1,
+                unchanged: 0,
+                degraded: 0,
+            })
+            .unwrap(),
+        ),
         ("lang_text", json!({ "lang": "jp", "text": "テスト" })),
         (
             "quest_summary",
@@ -246,7 +271,7 @@ pub fn samples() -> Vec<(&'static str, Value)> {
             "app_init_info",
             json!({
                 "indexReady": false, "termsAccepted": false, "aiAvailability": "unconfigured",
-                "dictAvailable": true, "schemaVersion": 5, "pendingRestore": false
+                "dictAvailable": true, "schemaVersion": 5, "pendingRestore": false, "storyResource": null, "storyImporting": false
             }),
         ),
         (

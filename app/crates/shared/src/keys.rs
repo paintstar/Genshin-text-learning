@@ -5,6 +5,8 @@
 
 /// 合法设置键与其默认值。
 pub const SETTINGS_KEYS: &[(&str, &str)] = &[
+    ("resources.story_info", ""),
+    ("resources.update_urls", "[]"),
     // 数据源首次连接时间；保留旧键名以兼容已有用户数据。
     ("fetch.terms_accepted_at", ""),
     // 抓取请求间隔下限（毫秒），礼貌抓取限速（技术设计 §2.2）。

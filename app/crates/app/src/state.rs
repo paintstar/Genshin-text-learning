@@ -8,7 +8,7 @@ use shared::dto::{BatchSyncStatus, FetchJobState, FetchJobStatus};
 use shared::AppError;
 use std::collections::HashMap;
 use std::path::PathBuf;
-use std::sync::atomic::AtomicU64;
+use std::sync::atomic::{AtomicBool, AtomicU64};
 use std::sync::{Arc, Mutex};
 use store::{SecretVault, Store};
 
@@ -93,6 +93,8 @@ pub struct AppState {
     pub ai_guard: Arc<ai::CliIsolationGuard>,
     pub fetch_jobs: FetchJobs,
     pub batch_sync: Mutex<Option<BatchSyncStatus>>,
+    pub story_import: Mutex<()>,
+    pub story_importing: AtomicBool,
     pub cancels: CancelRegistry,
     pub request_counter: AtomicU64,
     pub dict_db_path: PathBuf,

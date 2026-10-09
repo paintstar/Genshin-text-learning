@@ -163,6 +163,9 @@ impl QuestOpenService {
         quest_id: i64,
         emit: Arc<dyn Fn(FetchJobStatus) + Send + Sync>,
     ) -> Result<FetchJobStatus, AppError> {
+        if state.story_importing.load(Ordering::SeqCst) {
+            return Err(AppError::resource_missing("本地剧情正在导入，请稍后打开；已保存的剧情仍可阅读"));
+        }
         if state
             .store
             .with_read(|c| kb::query::load_summary(c, quest_id))?
@@ -359,7 +362,10 @@ impl UpdateService {
 }
 
 /// 出处核对编排（架构 4.8）：kb 取新正文行 → study 核对器判定 → 标记。
-fn revalidate_provenance(state: &Arc<AppState>, quest_id: i64) -> Result<usize, AppError> {
+pub(crate) fn revalidate_provenance(
+    state: &Arc<AppState>,
+    quest_id: i64,
+) -> Result<usize, AppError> {
     let notes = state
         .store
         .with_read(|c| study::NoteRepository::list_fresh_for_quest(c, quest_id))?;

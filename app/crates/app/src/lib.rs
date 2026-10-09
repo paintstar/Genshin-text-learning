@@ -8,6 +8,7 @@
 pub mod cancel;
 pub mod commands;
 pub mod composition;
+pub mod resources;
 pub mod services;
 pub mod state;
 pub mod window_state;

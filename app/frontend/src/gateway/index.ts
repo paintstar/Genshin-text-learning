@@ -16,6 +16,7 @@ import type {
   AiStreamEvent,
   AiTestResult,
   AppInitInfo,
+  StoryImportReport,
   BackupSummary,
   BatchSyncReport,
   BatchSyncStatus,
@@ -79,6 +80,10 @@ export interface ProgressSaveInput {
 
 export interface Gateway {
   // 初始化与设置
+  storyPackPick(): Promise<string | null>
+  storyPackImport(path: string): Promise<StoryImportReport>
+  storyPackUpdate(): Promise<StoryImportReport>
+  onStoryResourcesChanged(cb: () => void): Promise<() => void>
   appInit(): Promise<AppInitInfo>
   settingsGet(key: string): Promise<string | null>
   settingsSet(key: string, value: string): Promise<void>
